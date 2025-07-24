@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { useStudents } from "@/hooks/useStudents";
 import { 
   Plus, 
   Search, 
@@ -14,57 +15,12 @@ import {
   Eye,
   Edit,
   Trash2,
-  UserPlus
+  UserPlus,
+  Loader2
 } from "lucide-react";
 
-interface Student {
-  id: number;
-  name: string;
-  grade: string;
-  gender: string;
-  email: string;
-  parentContact: string;
-  enrollmentDate: string;
-  averageScore: number;
-  attendanceRate: number;
-}
-
 const Students = () => {
-  const [students, setStudents] = useState<Student[]>([
-    {
-      id: 1,
-      name: "Alice Johnson",
-      grade: "Grade 9",
-      gender: "Female",
-      email: "alice.johnson@email.com",
-      parentContact: "+1234567890",
-      enrollmentDate: "2024-01-15",
-      averageScore: 85,
-      attendanceRate: 95
-    },
-    {
-      id: 2,
-      name: "Bob Smith",
-      grade: "Grade 10",
-      gender: "Male",
-      email: "bob.smith@email.com",
-      parentContact: "+1234567891",
-      enrollmentDate: "2024-01-16",
-      averageScore: 78,
-      attendanceRate: 88
-    },
-    {
-      id: 3,
-      name: "Carol Davis",
-      grade: "Grade 11",
-      gender: "Female",
-      email: "carol.davis@email.com",
-      parentContact: "+1234567892",
-      enrollmentDate: "2024-01-17",
-      averageScore: 92,
-      attendanceRate: 97
-    }
-  ]);
+  const { students, loading, addStudent, updateStudent, deleteStudent } = useStudents();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedGrade, setSelectedGrade] = useState<string>("all");
@@ -73,47 +29,45 @@ const Students = () => {
     name: "",
     grade: "",
     gender: "",
-    email: "",
-    parentContact: "",
-    enrollmentDate: ""
+    date_of_birth: "",
+    contact_info: ""
   });
 
   const filteredStudents = students.filter(student => {
-    const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         student.email.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesGrade = selectedGrade === "all" || student.grade === selectedGrade;
     return matchesSearch && matchesGrade;
   });
 
-  const handleAddStudent = () => {
-    if (!newStudent.name || !newStudent.grade || !newStudent.gender || !newStudent.email) {
+  const handleAddStudent = async () => {
+    if (!newStudent.name || !newStudent.grade || !newStudent.gender) {
       toast.error("Please fill in all required fields");
       return;
     }
 
-    const student: Student = {
-      id: students.length + 1,
-      ...newStudent,
-      averageScore: 0,
-      attendanceRate: 0
+    const studentData = {
+      name: newStudent.name,
+      grade: newStudent.grade,
+      gender: newStudent.gender,
+      date_of_birth: newStudent.date_of_birth || null,
+      contact_info: newStudent.contact_info ? { contact: newStudent.contact_info } : null
     };
 
-    setStudents([...students, student]);
-    setNewStudent({
-      name: "",
-      grade: "",
-      gender: "",
-      email: "",
-      parentContact: "",
-      enrollmentDate: ""
-    });
-    setIsAddDialogOpen(false);
-    toast.success("Student added successfully!");
+    const result = await addStudent(studentData);
+    if (result) {
+      setNewStudent({
+        name: "",
+        grade: "",
+        gender: "",
+        date_of_birth: "",
+        contact_info: ""
+      });
+      setIsAddDialogOpen(false);
+    }
   };
 
-  const handleDeleteStudent = (id: number) => {
-    setStudents(students.filter(student => student.id !== id));
-    toast.success("Student removed successfully!");
+  const handleDeleteStudent = async (id: string) => {
+    await deleteStudent(id);
   };
 
   const getScoreBadgeVariant = (score: number) => {
@@ -188,34 +142,23 @@ const Students = () => {
                 </Select>
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="email" className="text-right">Email *</Label>
+                <Label htmlFor="date_of_birth" className="text-right">Date of Birth</Label>
                 <Input
-                  id="email"
-                  type="email"
-                  value={newStudent.email}
-                  onChange={(e) => setNewStudent({...newStudent, email: e.target.value})}
-                  className="col-span-3"
-                  placeholder="student@email.com"
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="parentContact" className="text-right">Parent Contact</Label>
-                <Input
-                  id="parentContact"
-                  value={newStudent.parentContact}
-                  onChange={(e) => setNewStudent({...newStudent, parentContact: e.target.value})}
-                  className="col-span-3"
-                  placeholder="+1234567890"
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="enrollmentDate" className="text-right">Enrollment Date</Label>
-                <Input
-                  id="enrollmentDate"
+                  id="date_of_birth"
                   type="date"
-                  value={newStudent.enrollmentDate}
-                  onChange={(e) => setNewStudent({...newStudent, enrollmentDate: e.target.value})}
+                  value={newStudent.date_of_birth}
+                  onChange={(e) => setNewStudent({...newStudent, date_of_birth: e.target.value})}
                   className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="contact_info" className="text-right">Contact Info</Label>
+                <Input
+                  id="contact_info"
+                  value={newStudent.contact_info}
+                  onChange={(e) => setNewStudent({...newStudent, contact_info: e.target.value})}
+                  className="col-span-3"
+                  placeholder="Phone, email, etc."
                 />
               </div>
             </div>
@@ -277,62 +220,60 @@ const Students = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-            {filteredStudents.map((student) => (
-              <Card key={student.id} className="border border-border hover:shadow-md transition-shadow">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">{student.name}</CardTitle>
-                    <div className="flex space-x-1">
-                      <Button variant="ghost" size="sm">
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm">
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => handleDeleteStudent(student.id)}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Badge variant="outline">{student.grade}</Badge>
-                    <Badge variant="outline">{student.gender}</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2 text-sm">
-                    <p><span className="font-medium">Email:</span> {student.email}</p>
-                    <p><span className="font-medium">Parent:</span> {student.parentContact}</p>
-                    <p><span className="font-medium">Enrolled:</span> {student.enrollmentDate}</p>
-                    <div className="flex items-center justify-between pt-2">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-xs font-medium">Score:</span>
-                        <Badge variant={getScoreBadgeVariant(student.averageScore)}>
-                          {student.averageScore}%
-                        </Badge>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-xs font-medium">Attendance:</span>
-                        <Badge variant={getAttendanceBadgeVariant(student.attendanceRate)}>
-                          {student.attendanceRate}%
-                        </Badge>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-          {filteredStudents.length === 0 && (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">No students found matching your criteria.</p>
+          {loading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin" />
             </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                {filteredStudents.map((student) => (
+                  <Card key={student.id} className="border border-border hover:shadow-md transition-shadow">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-lg">{student.name}</CardTitle>
+                        <div className="flex space-x-1">
+                          <Button variant="ghost" size="sm">
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm">
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handleDeleteStudent(student.id)}
+                            className="text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Badge variant="outline">{student.grade}</Badge>
+                        <Badge variant="outline">{student.gender}</Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2 text-sm">
+                        {student.date_of_birth && (
+                          <p><span className="font-medium">DOB:</span> {new Date(student.date_of_birth).toLocaleDateString()}</p>
+                        )}
+                        {student.contact_info && (
+                          <p><span className="font-medium">Contact:</span> {JSON.stringify(student.contact_info)}</p>
+                        )}
+                        <p><span className="font-medium">Added:</span> {new Date(student.created_at).toLocaleDateString()}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+              {filteredStudents.length === 0 && !loading && (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">No students found matching your criteria.</p>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
