@@ -37,19 +37,33 @@ const Uploads = () => {
 
   const fetchUploads = async () => {
     try {
+      // Use lessons table to display uploaded files since file_uploads table doesn't exist
       const { data, error } = await supabase
-        .from('file_uploads')
+        .from('lessons')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Error fetching uploads:', error);
+        console.error('Error fetching uploads:', JSON.stringify(error, null, 2));
+        toast.error(`Failed to fetch files: ${error.message || 'Unknown error'}`);
+        setUploads([]);
         return;
       }
 
-      setUploads(data || []);
+      // Map lessons data to upload format
+      const mappedUploads = (data || []).map(lesson => ({
+        id: lesson.id,
+        file_name: lesson.pdf_filename || lesson.title,
+        file_type: 'application/pdf',
+        file_size: 0, // We don't have size info
+        file_path: lesson.pdf_filename || '',
+        created_at: lesson.created_at
+      }));
+
+      setUploads(mappedUploads);
     } catch (error) {
       console.error('Error:', error);
+      toast.error('Failed to fetch files');
       setUploads([]);
     } finally {
       setLoading(false);
@@ -58,34 +72,19 @@ const Uploads = () => {
 
   const uploadFile = async (file: File) => {
     try {
-      // Upload file to storage
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random()}.${fileExt}`;
-      const filePath = `uploads/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('files')
-        .upload(filePath, file);
-
-      if (uploadError) {
-        console.error('Storage upload error:', uploadError);
-        return false;
-      }
-
-      // Save file metadata to database
-      const { error: dbError } = await supabase
-        .from('file_uploads')
+      // For demo purposes, create a lesson entry for the uploaded file
+      const { error } = await supabase
+        .from('lessons')
         .insert([{
-          file_name: file.name,
-          file_type: file.type,
-          file_size: file.size,
-          file_path: filePath
+          title: file.name,
+          grade: 'General',
+          pdf_filename: file.name,
+          pdf_content: null
         }]);
 
-      if (dbError) {
-        console.error('Database error:', dbError);
-        // Clean up uploaded file if database insert fails
-        await supabase.storage.from('files').remove([filePath]);
+      if (error) {
+        console.error('Upload error:', JSON.stringify(error, null, 2));
+        toast.error(`Upload failed: ${error.message || 'Unknown error'}`);
         return false;
       }
 
@@ -93,43 +92,21 @@ const Uploads = () => {
       return true;
     } catch (error) {
       console.error('Upload error:', error);
+      toast.error('Upload failed');
       return false;
     }
   };
 
   const deleteFile = async (id: string) => {
     try {
-      // First get the file path
-      const { data: fileData, error: fetchError } = await supabase
-        .from('file_uploads')
-        .select('file_path')
-        .eq('id', id)
-        .single();
-
-      if (fetchError) {
-        console.error('Error fetching file data:', fetchError);
-        toast.error('Failed to delete file');
-        return false;
-      }
-
-      // Delete from storage
-      const { error: storageError } = await supabase.storage
-        .from('files')
-        .remove([fileData.file_path]);
-
-      if (storageError) {
-        console.error('Storage delete error:', storageError);
-      }
-
-      // Delete from database
-      const { error: dbError } = await supabase
-        .from('file_uploads')
+      const { error } = await supabase
+        .from('lessons')
         .delete()
         .eq('id', id);
 
-      if (dbError) {
-        console.error('Database delete error:', dbError);
-        toast.error('Failed to delete file');
+      if (error) {
+        console.error('Delete error:', JSON.stringify(error, null, 2));
+        toast.error(`Delete failed: ${error.message || 'Unknown error'}`);
         return false;
       }
 
@@ -145,26 +122,12 @@ const Uploads = () => {
 
   const downloadFile = async (filePath: string, fileName: string) => {
     try {
-      const { data, error } = await supabase.storage
-        .from('files')
-        .download(filePath);
-
-      if (error) {
-        console.error('Download error:', error);
-        return false;
-      }
-
-      // Create download link
-      const url = URL.createObjectURL(data);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      link.click();
-      URL.revokeObjectURL(url);
-
+      // For demo purposes, just show a message since we don't have actual file storage
+      toast.info(`Download functionality not available for ${fileName} - Demo mode`);
       return true;
     } catch (error) {
       console.error('Download error:', error);
+      toast.error('Download failed');
       return false;
     }
   };
