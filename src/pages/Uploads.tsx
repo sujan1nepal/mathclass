@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,11 +6,11 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { useSupabaseUploads } from "@/hooks/useSupabaseUploads";
-import { 
-  Upload, 
-  FileText, 
-  Image, 
+import { supabase } from "@/integrations/supabase/client";
+import {
+  Upload,
+  FileText,
+  Image,
   File,
   Download,
   Trash2,
@@ -19,11 +19,159 @@ import {
   HardDrive
 } from "lucide-react";
 
+interface FileUpload {
+  id: string;
+  file_name: string;
+  file_type: string;
+  file_size: number;
+  file_path: string;
+  created_at: string;
+}
+
 const Uploads = () => {
-  const { uploads, loading, uploadFile, deleteFile, downloadFile } = useSupabaseUploads();
+  const [uploads, setUploads] = useState<FileUpload[]>([]);
+  const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [dragActive, setDragActive] = useState(false);
+
+  const fetchUploads = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('file_uploads')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching uploads:', error);
+        return;
+      }
+
+      setUploads(data || []);
+    } catch (error) {
+      console.error('Error:', error);
+      setUploads([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const uploadFile = async (file: File) => {
+    try {
+      // Upload file to storage
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `uploads/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('files')
+        .upload(filePath, file);
+
+      if (uploadError) {
+        console.error('Storage upload error:', uploadError);
+        return false;
+      }
+
+      // Save file metadata to database
+      const { error: dbError } = await supabase
+        .from('file_uploads')
+        .insert([{
+          file_name: file.name,
+          file_type: file.type,
+          file_size: file.size,
+          file_path: filePath
+        }]);
+
+      if (dbError) {
+        console.error('Database error:', dbError);
+        // Clean up uploaded file if database insert fails
+        await supabase.storage.from('files').remove([filePath]);
+        return false;
+      }
+
+      await fetchUploads();
+      return true;
+    } catch (error) {
+      console.error('Upload error:', error);
+      return false;
+    }
+  };
+
+  const deleteFile = async (id: string) => {
+    try {
+      // First get the file path
+      const { data: fileData, error: fetchError } = await supabase
+        .from('file_uploads')
+        .select('file_path')
+        .eq('id', id)
+        .single();
+
+      if (fetchError) {
+        console.error('Error fetching file data:', fetchError);
+        toast.error('Failed to delete file');
+        return false;
+      }
+
+      // Delete from storage
+      const { error: storageError } = await supabase.storage
+        .from('files')
+        .remove([fileData.file_path]);
+
+      if (storageError) {
+        console.error('Storage delete error:', storageError);
+      }
+
+      // Delete from database
+      const { error: dbError } = await supabase
+        .from('file_uploads')
+        .delete()
+        .eq('id', id);
+
+      if (dbError) {
+        console.error('Database delete error:', dbError);
+        toast.error('Failed to delete file');
+        return false;
+      }
+
+      await fetchUploads();
+      toast.success('File deleted successfully');
+      return true;
+    } catch (error) {
+      console.error('Delete error:', error);
+      toast.error('Failed to delete file');
+      return false;
+    }
+  };
+
+  const downloadFile = async (filePath: string, fileName: string) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from('files')
+        .download(filePath);
+
+      if (error) {
+        console.error('Download error:', error);
+        return false;
+      }
+
+      // Create download link
+      const url = URL.createObjectURL(data);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      link.click();
+      URL.revokeObjectURL(url);
+
+      return true;
+    } catch (error) {
+      console.error('Download error:', error);
+      return false;
+    }
+  };
+
+  useEffect(() => {
+    fetchUploads();
+  }, []);
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -110,7 +258,7 @@ const Uploads = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const totalStorage = uploads.reduce((sum, upload) => sum + (upload.file_size || 0), 0);
+  const totalStorage = (uploads || []).reduce((sum, upload) => sum + (upload.file_size || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -191,7 +339,7 @@ const Uploads = () => {
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <FileText className="w-5 h-5" />
-            <span>Your Files ({uploads.length})</span>
+            <span>Your Files ({(uploads || []).length})</span>
           </CardTitle>
           <CardDescription>
             Manage and download your uploaded files
@@ -202,9 +350,9 @@ const Uploads = () => {
             <div className="flex justify-center py-8">
               <Loader2 className="w-6 h-6 animate-spin" />
             </div>
-          ) : uploads.length > 0 ? (
+          ) : (uploads || []).length > 0 ? (
             <div className="space-y-4">
-              {uploads.map((upload) => (
+              {(uploads || []).map((upload) => (
                 <div
                   key={upload.id}
                   className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
