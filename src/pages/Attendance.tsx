@@ -27,7 +27,7 @@ interface StudentAttendance {
 
 const Attendance = () => {
   const { students, loading: studentsLoading } = useStudents();
-  const { attendanceRecords, loading: attendanceLoading, saveBulkAttendance, fetchAttendance, getAttendanceStats } = useAttendance();
+  const { attendanceRecords, loading: attendanceLoading, saveBulkAttendance, fetchAttendance } = useAttendance();
   
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedGrade, setSelectedGrade] = useState<string>("");
