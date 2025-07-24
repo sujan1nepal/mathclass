@@ -14,7 +14,219 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      attendance: {
+        Row: {
+          created_at: string
+          date: string
+          id: string
+          status: string
+          student_id: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          id?: string
+          status: string
+          student_id: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          id?: string
+          status?: string
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lessons: {
+        Row: {
+          created_at: string
+          grade: string
+          id: string
+          pdf_content: string | null
+          pdf_filename: string | null
+          title: string
+          upload_date: string
+        }
+        Insert: {
+          created_at?: string
+          grade: string
+          id?: string
+          pdf_content?: string | null
+          pdf_filename?: string | null
+          title: string
+          upload_date?: string
+        }
+        Update: {
+          created_at?: string
+          grade?: string
+          id?: string
+          pdf_content?: string | null
+          pdf_filename?: string | null
+          title?: string
+          upload_date?: string
+        }
+        Relationships: []
+      }
+      student_scores: {
+        Row: {
+          created_at: string
+          id: string
+          scored_marks: number
+          student_id: string
+          test_question_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          scored_marks?: number
+          student_id: string
+          test_question_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          scored_marks?: number
+          student_id?: string
+          test_question_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_scores_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_scores_test_question_id_fkey"
+            columns: ["test_question_id"]
+            isOneToOne: false
+            referencedRelation: "test_questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      students: {
+        Row: {
+          contact_info: Json | null
+          created_at: string
+          date_of_birth: string | null
+          gender: string
+          grade: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          contact_info?: Json | null
+          created_at?: string
+          date_of_birth?: string | null
+          gender: string
+          grade: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          contact_info?: Json | null
+          created_at?: string
+          date_of_birth?: string | null
+          gender?: string
+          grade?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      test_questions: {
+        Row: {
+          created_at: string
+          id: string
+          question_order: number
+          question_text: string
+          test_id: string
+          total_marks: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          question_order?: number
+          question_text: string
+          test_id: string
+          total_marks?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          question_order?: number
+          question_text?: string
+          test_id?: string
+          total_marks?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_questions_test_id_fkey"
+            columns: ["test_id"]
+            isOneToOne: false
+            referencedRelation: "tests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tests: {
+        Row: {
+          created_at: string
+          grade: string
+          id: string
+          lesson_id: string | null
+          pdf_content: string | null
+          pdf_filename: string | null
+          title: string
+          total_marks: number
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          grade: string
+          id?: string
+          lesson_id?: string | null
+          pdf_content?: string | null
+          pdf_filename?: string | null
+          title: string
+          total_marks?: number
+          type: string
+        }
+        Update: {
+          created_at?: string
+          grade?: string
+          id?: string
+          lesson_id?: string | null
+          pdf_content?: string | null
+          pdf_filename?: string | null
+          title?: string
+          total_marks?: number
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tests_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
