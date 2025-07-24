@@ -88,24 +88,33 @@ const Uploads = () => {
       type: 'lesson' as const,
       grade: lesson.grade,
       uploadDate: new Date(lesson.upload_date).toLocaleDateString(),
-      content: lesson.pdf_content,
-      title: lesson.title
-    })),
-    ...tests.map(test => ({
-      id: test.id,
-      name: test.pdf_filename || test.title,
-      type: test.type,
-      grade: test.grade,
-      uploadDate: new Date(test.created_at).toLocaleDateString(),
-      content: test.pdf_content,
-      title: test.title,
-      totalMarks: test.total_marks
-    }))
-  ];
+  const handleExportAllFiles = () => {
+    const reportData = {
+      grade: selectedGrade,
+      files: filteredFiles,
+      totalFiles: filteredFiles.length,
+      generatedAt: new Date().toISOString()
+    };
+    
+    const dataStr = JSON.stringify(reportData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `files-export-${selectedGrade || 'all'}-${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
-  const filteredFiles = selectedGrade 
-    ? allFiles.filter(file => file.grade === selectedGrade)
-    : allFiles;
+  const handleViewFile = (file: any) => {
+    // TODO: Implement file viewer
+    toast.info(`Viewing ${file.name} - Feature coming soon!`);
+  };
+
+  const handleDownloadFile = (file: any) => {
+    // TODO: Implement file download
+    toast.info(`Downloading ${file.name} - Feature coming soon!`);
+  };
 
   return (
     <div className="space-y-6">
@@ -114,7 +123,12 @@ const Uploads = () => {
           <h1 className="text-3xl font-bold text-foreground">Upload Files</h1>
           <p className="text-muted-foreground">Manage lesson plans and test materials with PDF text extraction</p>
         </div>
-        <Button variant="outline" className="gap-2">
+        <Button 
+          variant="outline" 
+          className="gap-2"
+          onClick={handleExportAllFiles}
+          disabled={filteredFiles.length === 0}
+        >
           <Download className="w-4 h-4" />
           Export All Files
         </Button>
@@ -252,10 +266,18 @@ const Uploads = () => {
                     <Badge variant="outline" className="capitalize">
                       {file.type}
                     </Badge>
-                    <Button variant="ghost" size="sm">
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => handleViewFile(file)}
+                    >
                       <Eye className="w-4 h-4" />
                     </Button>
-                    <Button variant="ghost" size="sm">
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => handleDownloadFile(file)}
+                    >
                       <Download className="w-4 h-4" />
                     </Button>
                     <Button 
@@ -277,7 +299,13 @@ const Uploads = () => {
               ))}
               {filteredFiles.length === 0 && !loading && (
                 <div className="text-center py-8">
-                  <p className="text-muted-foreground">No files uploaded yet. Select a grade and upload your first file!</p>
+                  <Upload className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground">
+                    {selectedGrade 
+                      ? `No files uploaded for ${selectedGrade} yet. Upload your first file above!`
+                      : "No files uploaded yet. Select a grade and upload your first file!"
+                    }
+                  </p>
                 </div>
               )}
             </div>

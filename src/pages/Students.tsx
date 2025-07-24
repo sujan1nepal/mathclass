@@ -82,6 +82,28 @@ const Students = () => {
     return "destructive";
   };
 
+  const getScoreBadgeVariant = (score: number) => {
+    if (score >= 80) return "default";
+    if (score >= 70) return "secondary";
+    return "destructive";
+  };
+
+  const getAttendanceBadgeVariant = (rate: number) => {
+    if (rate >= 90) return "default";
+    if (rate >= 80) return "secondary";
+    return "destructive";
+  };
+
+  const handleViewStudent = (student: any) => {
+    // TODO: Implement student details view
+    toast.info(`Viewing details for ${student.name} - Feature coming soon!`);
+  };
+
+  const handleEditStudent = (student: any) => {
+    // TODO: Implement student editing
+    toast.info(`Editing ${student.name} - Feature coming soon!`);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -233,10 +255,18 @@ const Students = () => {
                       <div className="flex items-center justify-between">
                         <CardTitle className="text-lg">{student.name}</CardTitle>
                         <div className="flex space-x-1">
-                          <Button variant="ghost" size="sm">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handleViewStudent(student)}
+                          >
                             <Eye className="w-4 h-4" />
                           </Button>
-                          <Button variant="ghost" size="sm">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handleEditStudent(student)}
+                          >
                             <Edit className="w-4 h-4" />
                           </Button>
                           <Button 
@@ -260,7 +290,11 @@ const Students = () => {
                           <p><span className="font-medium">DOB:</span> {new Date(student.date_of_birth).toLocaleDateString()}</p>
                         )}
                         {student.contact_info && (
-                          <p><span className="font-medium">Contact:</span> {JSON.stringify(student.contact_info)}</p>
+                          <p><span className="font-medium">Contact:</span> {
+                            typeof student.contact_info === 'object' 
+                              ? student.contact_info.contact || 'N/A'
+                              : student.contact_info
+                          }</p>
                         )}
                         <p><span className="font-medium">Added:</span> {new Date(student.created_at).toLocaleDateString()}</p>
                       </div>
@@ -270,7 +304,13 @@ const Students = () => {
               </div>
               {filteredStudents.length === 0 && !loading && (
                 <div className="text-center py-8">
-                  <p className="text-muted-foreground">No students found matching your criteria.</p>
+                  <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground">
+                    {searchTerm || selectedGrade !== "all" 
+                      ? "No students found matching your criteria." 
+                      : "No students added yet. Click 'Add Student' to get started!"
+                    }
+                  </p>
                 </div>
               )}
             </>

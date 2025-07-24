@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useStudents } from "@/hooks/useStudents";
+import { useAttendance } from "@/hooks/useAttendance";
 import { toast } from "sonner";
 import { 
   Calendar as CalendarIcon, 
@@ -12,43 +14,55 @@ import {
   CheckCircle, 
   XCircle,
   Save,
-  Download
+  Download,
+  Loader2
 } from "lucide-react";
 
-interface Student {
-  id: number;
+interface StudentAttendance {
+  id: string;
   name: string;
   grade: string;
   isPresent: boolean;
 }
 
-interface AttendanceRecord {
-  date: string;
-  grade: string;
-  students: Student[];
-}
-
 const Attendance = () => {
+  const { students, loading: studentsLoading } = useStudents();
+  const { attendanceRecords, loading: attendanceLoading, saveBulkAttendance, fetchAttendance, getAttendanceStats } = useAttendance();
+  
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedGrade, setSelectedGrade] = useState<string>("");
-  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
-  
-  // Mock students data
-  const [students, setStudents] = useState<Student[]>([
-    { id: 1, name: "Alice Johnson", grade: "Grade 9", isPresent: false },
-    { id: 2, name: "Bob Smith", grade: "Grade 10", isPresent: false },
-    { id: 3, name: "Carol Davis", grade: "Grade 11", isPresent: false },
-    { id: 4, name: "David Wilson", grade: "Grade 9", isPresent: false },
-    { id: 5, name: "Emma Brown", grade: "Grade 10", isPresent: false },
-    { id: 6, name: "Frank Miller", grade: "Grade 11", isPresent: false },
-  ]);
+  const [studentAttendance, setStudentAttendance] = useState<StudentAttendance[]>([]);
+  const [saving, setSaving] = useState(false);
 
-  const filteredStudents = selectedGrade 
-    ? students.filter(student => student.grade === selectedGrade)
-    : students;
+  // Update student attendance when grade or date changes
+  useEffect(() => {
+    if (selectedGrade && students.length > 0) {
+      const gradeStudents = students.filter(student => student.grade === selectedGrade);
+      const dateString = selectedDate.toISOString().split('T')[0];
+      
+      // Check existing attendance for this date
+      const existingAttendance = attendanceRecords.filter(
+        record => record.date === dateString && record.student?.grade === selectedGrade
+      );
+      
+      const updatedStudentAttendance = gradeStudents.map(student => {
+        const existingRecord = existingAttendance.find(record => record.student_id === student.id);
+        return {
+          id: student.id,
+          name: student.name,
+          grade: student.grade,
+          isPresent: existingRecord?.status === 'present'
+        };
+      });
+      
+      setStudentAttendance(updatedStudentAttendance);
+    } else {
+      setStudentAttendance([]);
+    }
+  }, [selectedGrade, selectedDate, students, attendanceRecords]);
 
-  const handleAttendanceChange = (studentId: number, isPresent: boolean) => {
-    setStudents(students.map(student => 
+  const handleAttendanceChange = (studentId: string, isPresent: boolean) => {
+    setStudentAttendance(studentAttendance.map(student => 
       student.id === studentId 
         ? { ...student, isPresent }
         : student
@@ -60,11 +74,7 @@ const Attendance = () => {
       toast.error("Please select a grade first");
       return;
     }
-    setStudents(students.map(student => 
-      student.grade === selectedGrade 
-        ? { ...student, isPresent: true }
-        : student
-    ));
+    setStudentAttendance(studentAttendance.map(student => ({ ...student, isPresent: true })));
     toast.success("All students marked as present");
   };
 
@@ -73,53 +83,61 @@ const Attendance = () => {
       toast.error("Please select a grade first");
       return;
     }
-    setStudents(students.map(student => 
-      student.grade === selectedGrade 
-        ? { ...student, isPresent: false }
-        : student
-    ));
+    setStudentAttendance(studentAttendance.map(student => ({ ...student, isPresent: false })));
     toast.success("All students marked as absent");
   };
 
-  const handleSaveAttendance = () => {
+  const handleSaveAttendance = async () => {
     if (!selectedGrade) {
       toast.error("Please select a grade first");
       return;
     }
 
+    setSaving(true);
     const dateString = selectedDate.toISOString().split('T')[0];
-    const newRecord: AttendanceRecord = {
-      date: dateString,
-      grade: selectedGrade,
-      students: filteredStudents.map(student => ({ ...student }))
-    };
-
-    // Remove existing record for same date and grade
-    const updatedRecords = attendanceRecords.filter(
-      record => !(record.date === dateString && record.grade === selectedGrade)
-    );
     
-    setAttendanceRecords([...updatedRecords, newRecord]);
-    toast.success("Attendance saved successfully!");
+    const attendanceData = studentAttendance.map(student => ({
+      studentId: student.id,
+      date: dateString,
+      status: student.isPresent ? 'present' as const : 'absent' as const
+    }));
+
+    const success = await saveBulkAttendance(attendanceData);
+    if (success) {
+      await fetchAttendance();
+    }
+    setSaving(false);
   };
 
   const getAttendanceStats = () => {
-    if (filteredStudents.length === 0) return { present: 0, absent: 0, rate: 0 };
+    if (studentAttendance.length === 0) return { present: 0, absent: 0, rate: 0 };
     
-    const present = filteredStudents.filter(student => student.isPresent).length;
-    const absent = filteredStudents.length - present;
-    const rate = Math.round((present / filteredStudents.length) * 100);
+    const present = studentAttendance.filter(student => student.isPresent).length;
+    const absent = studentAttendance.length - present;
+    const rate = Math.round((present / studentAttendance.length) * 100);
     
     return { present, absent, rate };
   };
 
   const stats = getAttendanceStats();
 
-  const getAttendanceHistory = () => {
-    return attendanceRecords
-      .filter(record => record.grade === selectedGrade)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .slice(0, 5);
+  const handleExportReport = () => {
+    const reportData = {
+      date: selectedDate.toISOString().split('T')[0],
+      grade: selectedGrade,
+      attendance: studentAttendance,
+      stats,
+      generatedAt: new Date().toISOString()
+    };
+    
+    const dataStr = JSON.stringify(reportData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `attendance-report-${selectedGrade}-${selectedDate.toISOString().split('T')[0]}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -129,7 +147,12 @@ const Attendance = () => {
           <h1 className="text-3xl font-bold text-foreground">Attendance</h1>
           <p className="text-muted-foreground">Track daily student attendance</p>
         </div>
-        <Button variant="outline" className="gap-2">
+        <Button 
+          variant="outline" 
+          className="gap-2"
+          onClick={handleExportReport}
+          disabled={!selectedGrade || studentAttendance.length === 0}
+        >
           <Download className="w-4 h-4" />
           Export Report
         </Button>
@@ -187,7 +210,7 @@ const Attendance = () => {
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Total Students:</span>
-                  <Badge variant="outline">{filteredStudents.length}</Badge>
+                  <Badge variant="outline">{studentAttendance.length}</Badge>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Present:</span>
@@ -225,7 +248,7 @@ const Attendance = () => {
           <CardContent className="space-y-3">
             <Button 
               onClick={handleMarkAllPresent}
-              disabled={!selectedGrade}
+              disabled={!selectedGrade || studentsLoading}
               className="w-full bg-success hover:bg-success/90"
             >
               <CheckCircle className="w-4 h-4 mr-2" />
@@ -233,7 +256,7 @@ const Attendance = () => {
             </Button>
             <Button 
               onClick={handleMarkAllAbsent}
-              disabled={!selectedGrade}
+              disabled={!selectedGrade || studentsLoading}
               variant="destructive"
               className="w-full"
             >
@@ -242,12 +265,16 @@ const Attendance = () => {
             </Button>
             <Button 
               onClick={handleSaveAttendance}
-              disabled={!selectedGrade}
+              disabled={!selectedGrade || saving || studentAttendance.length === 0}
               variant="outline"
               className="w-full"
             >
-              <Save className="w-4 h-4 mr-2" />
-              Save Attendance
+              {saving ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Save className="w-4 h-4 mr-2" />
+              )}
+              {saving ? 'Saving...' : 'Save Attendance'}
             </Button>
           </CardContent>
         </Card>
@@ -265,68 +292,43 @@ const Attendance = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredStudents.map((student) => (
-                <div
-                  key={student.id}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-                >
-                  <div className="flex items-center space-x-3">
-                    <Checkbox
-                      checked={student.isPresent}
-                      onCheckedChange={(checked) => 
-                        handleAttendanceChange(student.id, checked as boolean)
-                      }
-                    />
-                    <div>
-                      <p className="font-medium">{student.name}</p>
-                      <p className="text-sm text-muted-foreground">{student.grade}</p>
-                    </div>
-                  </div>
-                  <Badge 
-                    variant={student.isPresent ? "default" : "destructive"}
-                    className={student.isPresent ? "bg-success" : ""}
+            {studentsLoading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin" />
+              </div>
+            ) : studentAttendance.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {studentAttendance.map((student) => (
+                  <div
+                    key={student.id}
+                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
                   >
-                    {student.isPresent ? "Present" : "Absent"}
-                  </Badge>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Attendance History */}
-      {selectedGrade && getAttendanceHistory().length > 0 && (
-        <Card className="border-0 shadow-lg">
-          <CardHeader>
-            <CardTitle>Recent Attendance - {selectedGrade}</CardTitle>
-            <CardDescription>
-              Last 5 attendance records for this grade
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {getAttendanceHistory().map((record, index) => {
-                const present = record.students.filter(s => s.isPresent).length;
-                const total = record.students.length;
-                const rate = Math.round((present / total) * 100);
-                
-                return (
-                  <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div>
-                      <p className="font-medium">{new Date(record.date).toLocaleDateString()}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {present}/{total} students present
-                      </p>
+                    <div className="flex items-center space-x-3">
+                      <Checkbox
+                        checked={student.isPresent}
+                        onCheckedChange={(checked) => 
+                          handleAttendanceChange(student.id, checked as boolean)
+                        }
+                      />
+                      <div>
+                        <p className="font-medium">{student.name}</p>
+                        <p className="text-sm text-muted-foreground">{student.grade}</p>
+                      </div>
                     </div>
-                    <Badge variant={rate >= 90 ? "default" : rate >= 80 ? "secondary" : "destructive"}>
-                      {rate}%
+                    <Badge 
+                      variant={student.isPresent ? "default" : "destructive"}
+                      className={student.isPresent ? "bg-success" : ""}
+                    >
+                      {student.isPresent ? "Present" : "Absent"}
                     </Badge>
                   </div>
-                );
-              })}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-muted-foreground text-center py-8">
+                {selectedGrade ? 'No students found for this grade' : 'Please select a grade to view students'}
+              </p>
+            )}
           </CardContent>
         </Card>
       )}
