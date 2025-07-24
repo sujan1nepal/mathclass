@@ -82,18 +82,6 @@ const Students = () => {
     return "destructive";
   };
 
-  const getScoreBadgeVariant = (score: number) => {
-    if (score >= 80) return "default";
-    if (score >= 70) return "secondary";
-    return "destructive";
-  };
-
-  const getAttendanceBadgeVariant = (rate: number) => {
-    if (rate >= 90) return "default";
-    if (rate >= 80) return "secondary";
-    return "destructive";
-  };
-
   const handleViewStudent = (student: any) => {
     // TODO: Implement student details view
     toast.info(`Viewing details for ${student.name} - Feature coming soon!`);
