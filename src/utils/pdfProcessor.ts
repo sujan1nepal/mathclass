@@ -1,7 +1,17 @@
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Configure PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
+// Configure PDF.js worker with multiple fallback options
+const configureWorker = () => {
+  try {
+    // Try jsdelivr CDN first (better CORS support)
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
+  } catch (error) {
+    console.warn('Failed to configure worker, will use fallback');
+  }
+};
+
+// Initialize worker configuration
+configureWorker();
 
 export const extractTextFromPDF = async (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -16,34 +26,118 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
         }
 
         const uint8Array = new Uint8Array(arrayBuffer);
-        const loadingTask = pdfjsLib.getDocument({
-          data: uint8Array,
-          cMapUrl: 'https://unpkg.com/pdfjs-dist@3.11.174/cmaps/',
-          cMapPacked: true,
-        });
+        
+        // Try different configurations in order of preference
+        const configurations = [
+          // First try: with worker and cmaps
+          {
+            data: uint8Array,
+            cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
+            cMapPacked: true,
+            disableWorker: false,
+            verbosity: 0
+          },
+          // Second try: without cmaps but with worker
+          {
+            data: uint8Array,
+            disableWorker: false,
+            verbosity: 0
+          },
+          // Third try: without worker (fallback)
+          {
+            data: uint8Array,
+            disableWorker: true,
+            verbosity: 0
+          },
+          // Last resort: minimal configuration
+          {
+            data: uint8Array
+          }
+        ];
 
-        const pdf = await loadingTask.promise;
-        let fullText = '';
+        let pdf = null;
+        let configUsed = -1;
 
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const page = await pdf.getPage(i);
-          const textContent = await page.getTextContent();
-          const pageText = textContent.items
-            .filter((item: any) => item.str)
-            .map((item: any) => item.str)
-            .join(' ');
-          fullText += pageText + '\n';
+        for (let i = 0; i < configurations.length; i++) {
+          try {
+            console.log(`🔄 Trying PDF configuration ${i + 1}/${configurations.length}`);
+            const loadingTask = pdfjsLib.getDocument(configurations[i]);
+            pdf = await loadingTask.promise;
+            configUsed = i;
+            console.log(`✅ PDF loaded successfully with configuration ${i + 1}`);
+            break;
+          } catch (configError) {
+            console.warn(`⚠️ Configuration ${i + 1} failed:`, configError.message);
+            if (i === configurations.length - 1) {
+              throw configError;
+            }
+          }
         }
 
+        if (!pdf) {
+          throw new Error('Failed to load PDF with any configuration');
+        }
+
+        let fullText = '';
+        console.log(`📄 Processing PDF with ${pdf.numPages} pages (using config ${configUsed + 1})`);
+
+        for (let i = 1; i <= pdf.numPages; i++) {
+          try {
+            const page = await pdf.getPage(i);
+            const textContent = await page.getTextContent();
+            
+            // Extract text with better formatting
+            const pageText = textContent.items
+              .filter((item: any) => item.str && item.str.trim().length > 0)
+              .map((item: any) => {
+                // Clean up the text
+                return item.str.trim();
+              })
+              .join(' ')
+              .replace(/\s+/g, ' ') // Normalize whitespace
+              .trim();
+            
+            if (pageText.length > 0) {
+              fullText += pageText + '\n\n';
+              console.log(`📖 Page ${i}/${pdf.numPages}: ${pageText.length} characters`);
+            }
+          } catch (pageError) {
+            console.error(`❌ Error processing page ${i}:`, pageError);
+            // Continue with other pages even if one fails
+          }
+        }
+
+        if (fullText.trim().length === 0) {
+          console.warn('⚠️ No text content extracted from PDF');
+          reject(new Error('No text content could be extracted from the PDF. The file might be image-based, corrupted, or empty.'));
+          return;
+        }
+
+        console.log(`✅ Successfully extracted ${fullText.length} characters from PDF`);
         resolve(fullText.trim());
       } catch (error) {
-        console.error('Error parsing PDF:', error);
-        reject(new Error(`Failed to extract text from PDF: ${error instanceof Error ? error.message : 'Unknown error'}`));
+        console.error('❌ Error parsing PDF:', error);
+        
+        // Provide more helpful error messages
+        let errorMessage = 'Failed to extract text from PDF';
+        if (error instanceof Error) {
+          if (error.message.includes('CORS') || error.message.includes('worker')) {
+            errorMessage = 'PDF processing failed due to browser security restrictions. This is a known issue with PDF.js in production. Please try a different PDF or contact support.';
+          } else if (error.message.includes('Invalid PDF')) {
+            errorMessage = 'The uploaded file is not a valid PDF document.';
+          } else if (error.message.includes('Password')) {
+            errorMessage = 'This PDF is password protected. Please upload an unprotected PDF.';
+          } else {
+            errorMessage = `PDF processing error: ${error.message}`;
+          }
+        }
+        
+        reject(new Error(errorMessage));
       }
     };
 
     reader.onerror = () => {
-      reject(new Error('Failed to read file'));
+      reject(new Error('Failed to read the uploaded file.'));
     };
 
     reader.readAsArrayBuffer(file);
@@ -209,4 +303,26 @@ export const parseTestQuestions = (text: string): Array<{ question: string; mark
   }
   
   return questions;
+};
+
+// Helper function to create sample questions when PDF parsing fails
+export const createSampleQuestions = (title: string, type: 'pretest' | 'posttest'): Array<{ question: string; marks: number }> => {
+  console.log(`🔧 Creating sample questions for ${type}: ${title}`);
+  
+  const sampleQuestions = [
+    {
+      question: `Sample ${type} question 1 for ${title}. Please edit this question to match your actual test content.`,
+      marks: 2
+    },
+    {
+      question: `Sample ${type} question 2 for ${title}. You can modify these questions after upload.`,
+      marks: 3
+    },
+    {
+      question: `Sample ${type} question 3 for ${title}. These are placeholder questions.`,
+      marks: 1
+    }
+  ];
+  
+  return sampleQuestions;
 };

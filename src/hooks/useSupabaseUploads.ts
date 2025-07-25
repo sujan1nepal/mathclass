@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { extractTextFromPDF, parseTestQuestions } from '@/utils/pdfProcessor';
+import { extractTextFromPDF, parseTestQuestions, createSampleQuestions } from '@/utils/pdfProcessor';
 
 export interface Lesson {
   id: string;
@@ -137,11 +137,44 @@ export const useSupabaseUploads = () => {
     try {
       setLoading(true);
       
-      // Extract text from PDF
-      const pdfContent = await extractTextFromPDF(file);
+      let pdfContent = '';
+      let questions: Array<{ question: string; marks: number }> = [];
       
-      // Parse questions from PDF content
-      const questions = parseTestQuestions(pdfContent);
+      try {
+        // Try to extract text from PDF
+        console.log('📄 Attempting to extract text from PDF...');
+        pdfContent = await extractTextFromPDF(file);
+        console.log('✅ PDF text extraction successful');
+        
+        // Try to parse questions from PDF content
+        console.log('🔍 Attempting to parse questions from PDF content...');
+        questions = parseTestQuestions(pdfContent);
+        console.log(`✅ Question parsing successful: ${questions.length} questions found`);
+        
+      } catch (pdfError) {
+        console.warn('⚠️ PDF processing failed:', pdfError);
+        
+        // Show user-friendly error message but continue with fallback
+        toast.error('PDF text extraction failed. Creating sample questions that you can edit.');
+        
+        // Use fallback: create sample questions
+        pdfContent = `Failed to extract content from PDF: ${file.name}\nReason: ${pdfError instanceof Error ? pdfError.message : 'Unknown error'}`;
+        questions = createSampleQuestions(title, type);
+        console.log(`🔧 Created ${questions.length} sample questions as fallback`);
+      }
+      
+      // If still no questions, create minimal fallback
+      if (questions.length === 0) {
+        console.log('🆘 No questions found, creating minimal fallback...');
+        questions = [
+          {
+            question: `Question 1 for ${title}. Please edit this to match your actual test content.`,
+            marks: 1
+          }
+        ];
+        toast.warning('No questions could be parsed from the PDF. Please edit the questions manually.');
+      }
+      
       const totalMarks = questions.reduce((sum, q) => sum + q.marks, 0);
       
       // Insert test
@@ -180,16 +213,26 @@ export const useSupabaseUploads = () => {
         
         if (questionsError) {
           console.error('Error inserting questions:', questionsError);
+          toast.error('Test uploaded but failed to save questions. You can add them manually.');
+        } else {
+          console.log('✅ Questions saved successfully');
         }
       }
       
       await fetchTests();
       await fetchTestQuestions(testData.id);
-      toast.success(`${type} uploaded successfully with ${questions.length} questions`);
+      
+      // Show appropriate success message
+      if (pdfContent.includes('Failed to extract content')) {
+        toast.success(`${type} uploaded with ${questions.length} sample questions. Please edit them to match your test.`);
+      } else {
+        toast.success(`${type} uploaded successfully with ${questions.length} questions`);
+      }
+      
       return testData;
     } catch (error) {
-      toast.error('Failed to process PDF');
-      console.error('Error:', error);
+      toast.error('Failed to process upload');
+      console.error('Error in uploadTest:', error);
       return null;
     } finally {
       setLoading(false);
@@ -274,8 +317,26 @@ export const useSupabaseUploads = () => {
         console.error('Error deleting existing questions:', deleteError);
       }
       
-      // Re-parse questions
-      const questions = parseTestQuestions(testData.pdf_content);
+      let questions: Array<{ question: string; marks: number }> = [];
+      
+      try {
+        // Try to re-parse questions
+        console.log('🔍 Re-parsing questions from existing PDF content...');
+        questions = parseTestQuestions(testData.pdf_content);
+        console.log(`✅ Re-parsing successful: ${questions.length} questions found`);
+        
+        if (questions.length === 0) {
+          throw new Error('No questions could be parsed from the content');
+        }
+      } catch (parseError) {
+        console.warn('⚠️ Re-parsing failed:', parseError);
+        
+        // Use fallback: create sample questions
+        questions = createSampleQuestions(testData.title, testData.type);
+        console.log(`🔧 Created ${questions.length} sample questions as fallback`);
+        toast.warning('Could not parse questions from PDF. Created sample questions for editing.');
+      }
+      
       const totalMarks = questions.reduce((sum, q) => sum + q.marks, 0);
       
       // Update test with new total marks
@@ -310,7 +371,13 @@ export const useSupabaseUploads = () => {
       
       await fetchTests();
       await fetchTestQuestions(testId);
-      toast.success(`Re-parsed ${questions.length} questions successfully`);
+      
+      if (questions.some(q => q.question.includes('Sample'))) {
+        toast.success(`Re-parsed with ${questions.length} sample questions. Please edit them to match your test.`);
+      } else {
+        toast.success(`Re-parsed ${questions.length} questions successfully`);
+      }
+      
       return true;
     } catch (error) {
       console.error('Error re-parsing questions:', error);
