@@ -16,6 +16,8 @@ import { useStudentScores } from "@/hooks/useStudentScores";
 import { QuestionEditor } from "@/components/TestQuestions/QuestionEditor";
 import { StudentScoreCard } from "@/components/TestScoring/StudentScoreCard";
 import { PDFViewer } from "@/components/PDFViewer/PDFViewer";
+import { ManualQuestionEditor } from "@/components/TestQuestions/ManualQuestionEditor";
+import { generateTestTemplate, generateLessonTemplate } from "@/utils/docxTemplate";
 import {
   Upload,
   FileText,
@@ -36,7 +38,7 @@ import {
 } from "lucide-react";
 
 const Uploads = () => {
-  const { lessons, tests, testQuestions, loading: uploadsLoading, uploadLesson, uploadTest, deleteLesson, deleteTest, fetchTestQuestions, reparseTestQuestions } = useSupabaseUploads();
+  const { lessons, tests, testQuestions, loading: uploadsLoading, uploadLesson, uploadTest, deleteLesson, deleteTest, fetchTestQuestions, reparseTestQuestions, saveManualQuestions } = useSupabaseUploads();
   const { students } = useStudents();
   const { getStudentTestScores, saveBulkScores } = useStudentScores();
   
@@ -149,9 +151,44 @@ const Uploads = () => {
     }
   };
 
+  const handleSaveManualQuestions = async (questions: Array<{ question_text: string; total_marks: number; question_order: number }>) => {
+    if (!selectedTest) return false;
+    
+    try {
+      const success = await saveManualQuestions(selectedTest, questions);
+      if (success) {
+        // Reload the test scoring to show the new questions
+        await loadTestScoring(selectedTest);
+      }
+      return success;
+    } catch (error) {
+      console.error('Error saving manual questions:', error);
+      return false;
+    }
+  };
+
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       handleFileUpload(e.target.files[0]);
+    }
+  };
+
+  const handleDownloadTemplate = async () => {
+    if (!uploadForm.title || !uploadForm.grade) {
+      toast.error('Please enter title and grade before downloading template');
+      return;
+    }
+
+    try {
+      if (uploadType === 'lesson') {
+        await generateLessonTemplate(uploadForm.title, uploadForm.grade);
+      } else {
+        await generateTestTemplate(uploadType, uploadForm.title, uploadForm.grade);
+      }
+      toast.success(`Template downloaded! Fill it out and save as PDF to upload.`);
+    } catch (error) {
+      console.error('Error downloading template:', error);
+      toast.error('Failed to download template');
     }
   };
 
@@ -254,6 +291,36 @@ const Uploads = () => {
                   onChange={handleFileInput}
                   disabled={uploading}
                 />
+              </div>
+
+              {/* Template Download Section */}
+              <div className="space-y-3 border-t border-border pt-4">
+                <div className="flex items-center space-x-2">
+                  <Download className="w-4 h-4 text-primary" />
+                  <Label className="text-sm font-medium text-primary">Need Help Formatting?</Label>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Download a formatted template with proper question structure and guidelines.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleDownloadTemplate}
+                  className="w-full border-primary text-primary hover:bg-primary/10"
+                  disabled={!uploadForm.title || !uploadForm.grade}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download {uploadType === 'lesson' ? 'Lesson' : 'Test'} Template (.docx)
+                </Button>
+                <div className="text-xs text-muted-foreground bg-blue-50 p-3 rounded-lg">
+                  <p className="font-medium text-blue-700 mb-1">📝 How to use:</p>
+                  <ol className="list-decimal list-inside space-y-1 text-blue-600">
+                    <li>Download the template above</li>
+                    <li>Edit it with your content following the format</li>
+                    <li>Save as PDF and upload here</li>
+                    <li>Questions will be automatically parsed!</li>
+                  </ol>
+                </div>
               </div>
               
               {uploading && (
@@ -719,7 +786,17 @@ const Uploads = () => {
               <CardContent className="text-center py-12">
                 <FileText className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-medium mb-2">No questions found</h3>
-                <p className="text-muted-foreground">This test doesn't have any parsed questions available for scoring.</p>
+                <p className="text-muted-foreground mb-6">This test doesn't have any parsed questions available for scoring.</p>
+                
+                {/* Manual Question Editor */}
+                <div className="mt-6">
+                  <ManualQuestionEditor
+                    testId={selectedTest}
+                    testTitle={tests.find(t => t.id === selectedTest)?.title || 'Unknown Test'}
+                    initialQuestions={[]}
+                    onSave={handleSaveManualQuestions}
+                  />
+                </div>
               </CardContent>
             </Card>
           )}

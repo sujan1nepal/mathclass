@@ -1,20 +1,18 @@
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Configure PDF.js worker with multiple fallback options
+// Configure PDF.js worker with better fallback
+let workerConfigured = false;
+
 const configureWorker = () => {
+  if (workerConfigured) return;
+  
   try {
-    // Use a fixed known working version instead of dynamic version
-    const workerUrls = [
-      'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js',
-      'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js',
-      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
-    ];
-    
-    // Try the first working URL
-    pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrls[0];
-    console.log('🔧 Worker configured with:', workerUrls[0]);
+    // Try to disable worker entirely to avoid CORS issues
+    pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+    console.log('🔧 Worker disabled to avoid CORS issues');
+    workerConfigured = true;
   } catch (error) {
-    console.warn('Failed to configure worker, will use fallback');
+    console.warn('Failed to configure worker:', error);
   }
 };
 
@@ -22,121 +20,122 @@ const configureWorker = () => {
 configureWorker();
 
 export const extractTextFromPDF = async (file: File): Promise<string> => {
+  console.log('📄 Starting PDF text extraction...');
+  
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
 
     reader.onload = async (event) => {
       try {
         const arrayBuffer = event.target?.result as ArrayBuffer;
-
         if (!arrayBuffer) {
           throw new Error('Failed to read file as ArrayBuffer');
         }
 
         const uint8Array = new Uint8Array(arrayBuffer);
+        console.log(`📊 PDF file size: ${uint8Array.length} bytes`);
         
-        // Try different configurations in order of preference
-        const configurations = [
-          // First try: completely disable worker
-          {
-            data: uint8Array,
-            disableWorker: true,
-            verbosity: 0
-          },
-          // Second try: with worker but no cmaps
-          {
-            data: uint8Array,
-            disableWorker: false,
-            verbosity: 0
-          },
-          // Third try: with worker and cmaps
-          {
-            data: uint8Array,
-            cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
-            cMapPacked: true,
-            disableWorker: false,
-            verbosity: 0
-          },
-          // Last resort: minimal configuration
-          {
-            data: uint8Array
-          }
-        ];
+        // Single robust configuration - disable worker completely
+        const config = {
+          data: uint8Array,
+          disableWorker: true,
+          verbosity: 0, // Reduce console noise
+          disableAutoFetch: true,
+          disableStream: true
+        };
 
-        let pdf = null;
-        let configUsed = -1;
+        console.log('🔄 Loading PDF document...');
+        let loadingTask;
+        let pdf;
 
-        for (let i = 0; i < configurations.length; i++) {
-          try {
-            console.log(`🔄 Trying PDF configuration ${i + 1}/${configurations.length}`);
-            const loadingTask = pdfjsLib.getDocument(configurations[i]);
-            pdf = await loadingTask.promise;
-            configUsed = i;
-            console.log(`✅ PDF loaded successfully with configuration ${i + 1}`);
-            break;
-          } catch (configError) {
-            console.warn(`⚠️ Configuration ${i + 1} failed:`, configError.message);
-            if (i === configurations.length - 1) {
-              throw configError;
-            }
-          }
-        }
-
-        if (!pdf) {
-          throw new Error('Failed to load PDF with any configuration');
+        try {
+          loadingTask = pdfjsLib.getDocument(config);
+          pdf = await loadingTask.promise;
+          console.log(`✅ PDF loaded successfully with ${pdf.numPages} pages`);
+        } catch (loadError) {
+          console.error('❌ PDF loading failed:', loadError);
+          throw new Error('Failed to load PDF document. The file may be corrupted or not a valid PDF.');
         }
 
         let fullText = '';
-        console.log(`📄 Processing PDF with ${pdf.numPages} pages (using config ${configUsed + 1})`);
+        const pageTexts = [];
 
-        for (let i = 1; i <= pdf.numPages; i++) {
+        // Process each page
+        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
           try {
-            const page = await pdf.getPage(i);
-            const textContent = await page.getTextContent();
+            console.log(`📖 Processing page ${pageNum}/${pdf.numPages}...`);
             
-            // Extract text with better formatting
-            const pageText = textContent.items
-              .filter((item: any) => item.str && item.str.trim().length > 0)
-              .map((item: any) => {
-                // Clean up the text
-                return item.str.trim();
-              })
-              .join(' ')
-              .replace(/\s+/g, ' ') // Normalize whitespace
+            const page = await pdf.getPage(pageNum);
+            const textContent = await page.getTextContent({
+              normalizeWhitespace: true,
+              disableCombineTextItems: false
+            });
+            
+            // Extract text with better structure preservation
+            let pageText = '';
+            let lastY = -1;
+            
+            for (const item of textContent.items) {
+              if ('str' in item && item.str && item.str.trim()) {
+                // Check if this is a new line (different Y position)
+                if ('transform' in item && item.transform) {
+                  const currentY = item.transform[5];
+                  if (lastY !== -1 && Math.abs(currentY - lastY) > 5) {
+                    pageText += '\n';
+                  }
+                  lastY = currentY;
+                }
+                
+                pageText += item.str + ' ';
+              }
+            }
+            
+            // Clean up the page text
+            pageText = pageText
+              .replace(/\s+/g, ' ')
+              .replace(/\n\s+/g, '\n')
               .trim();
             
             if (pageText.length > 0) {
-              fullText += pageText + '\n\n';
-              console.log(`📖 Page ${i}/${pdf.numPages}: ${pageText.length} characters`);
+              pageTexts.push(pageText);
+              console.log(`✅ Page ${pageNum}: extracted ${pageText.length} characters`);
+            } else {
+              console.warn(`⚠️ Page ${pageNum}: no text content found`);
             }
+            
           } catch (pageError) {
-            console.error(`❌ Error processing page ${i}:`, pageError);
-            // Continue with other pages even if one fails
+            console.error(`❌ Error processing page ${pageNum}:`, pageError);
+            // Continue with other pages
           }
         }
-
+        
+        // Combine all page texts
+        fullText = pageTexts.join('\n\n');
+        
         if (fullText.trim().length === 0) {
-          console.warn('⚠️ No text content extracted from PDF');
-          reject(new Error('No text content could be extracted from the PDF. The file might be image-based, corrupted, or empty.'));
-          return;
+          console.warn('⚠️ No text content extracted from any pages');
+          throw new Error('No text content could be extracted from the PDF. This might be an image-based PDF or the text is not selectable.');
         }
 
-        console.log(`✅ Successfully extracted ${fullText.length} characters from PDF`);
-        resolve(fullText.trim());
-      } catch (error) {
-        console.error('❌ Error parsing PDF:', error);
+        console.log(`✅ Successfully extracted ${fullText.length} characters from ${pageTexts.length} pages`);
+        console.log('📝 First 200 characters:', fullText.substring(0, 200) + '...');
         
-        // Provide more helpful error messages
+        resolve(fullText.trim());
+        
+      } catch (error) {
+        console.error('❌ PDF processing error:', error);
+        
+        // More specific error messages
         let errorMessage = 'Failed to extract text from PDF';
         if (error instanceof Error) {
-          if (error.message.includes('CORS') || error.message.includes('worker')) {
-            errorMessage = 'PDF processing failed due to browser security restrictions. Using fallback questions that you can edit.';
-          } else if (error.message.includes('Invalid PDF')) {
-            errorMessage = 'The uploaded file is not a valid PDF document.';
+          if (error.message.includes('Invalid PDF')) {
+            errorMessage = 'Invalid PDF file. Please ensure the file is not corrupted.';
           } else if (error.message.includes('Password')) {
-            errorMessage = 'This PDF is password protected. Please upload an unprotected PDF.';
+            errorMessage = 'This PDF is password protected. Please provide an unprotected PDF.';
+          } else if (error.message.includes('image-based')) {
+            errorMessage = 'This appears to be an image-based PDF. Text extraction is not possible.';
           } else {
-            errorMessage = `PDF processing error: ${error.message}`;
+            errorMessage = `PDF processing failed: ${error.message}`;
           }
         }
         
@@ -144,7 +143,8 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
       }
     };
 
-    reader.onerror = () => {
+    reader.onerror = (error) => {
+      console.error('❌ FileReader error:', error);
       reject(new Error('Failed to read the uploaded file.'));
     };
 
