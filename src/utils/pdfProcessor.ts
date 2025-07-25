@@ -3,8 +3,16 @@ import * as pdfjsLib from 'pdfjs-dist';
 // Configure PDF.js worker with multiple fallback options
 const configureWorker = () => {
   try {
-    // Try jsdelivr CDN first (better CORS support)
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
+    // Use a fixed known working version instead of dynamic version
+    const workerUrls = [
+      'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js',
+      'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js',
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
+    ];
+    
+    // Try the first working URL
+    pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrls[0];
+    console.log('🔧 Worker configured with:', workerUrls[0]);
   } catch (error) {
     console.warn('Failed to configure worker, will use fallback');
   }
@@ -29,24 +37,24 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
         
         // Try different configurations in order of preference
         const configurations = [
-          // First try: with worker and cmaps
+          // First try: completely disable worker
+          {
+            data: uint8Array,
+            disableWorker: true,
+            verbosity: 0
+          },
+          // Second try: with worker but no cmaps
+          {
+            data: uint8Array,
+            disableWorker: false,
+            verbosity: 0
+          },
+          // Third try: with worker and cmaps
           {
             data: uint8Array,
             cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
             cMapPacked: true,
             disableWorker: false,
-            verbosity: 0
-          },
-          // Second try: without cmaps but with worker
-          {
-            data: uint8Array,
-            disableWorker: false,
-            verbosity: 0
-          },
-          // Third try: without worker (fallback)
-          {
-            data: uint8Array,
-            disableWorker: true,
             verbosity: 0
           },
           // Last resort: minimal configuration
@@ -122,7 +130,7 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
         let errorMessage = 'Failed to extract text from PDF';
         if (error instanceof Error) {
           if (error.message.includes('CORS') || error.message.includes('worker')) {
-            errorMessage = 'PDF processing failed due to browser security restrictions. This is a known issue with PDF.js in production. Please try a different PDF or contact support.';
+            errorMessage = 'PDF processing failed due to browser security restrictions. Using fallback questions that you can edit.';
           } else if (error.message.includes('Invalid PDF')) {
             errorMessage = 'The uploaded file is not a valid PDF document.';
           } else if (error.message.includes('Password')) {
