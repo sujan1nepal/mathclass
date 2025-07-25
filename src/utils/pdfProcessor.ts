@@ -19,8 +19,6 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
         const uint8Array = new Uint8Array(arrayBuffer);
         const loadingTask = pdfjsLib.getDocument({
           data: uint8Array,
-          cMapUrl: 'https://unpkg.com/pdfjs-dist@3.11.174/cmaps/',
-          cMapPacked: true,
         });
 
         const pdf = await loadingTask.promise;
