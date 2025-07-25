@@ -47,7 +47,10 @@ export const useAttendance = () => {
         return;
       }
 
-      setAttendanceRecords(data || []);
+      setAttendanceRecords((data || []).map(record => ({
+        ...record,
+        status: record.status as 'present' | 'absent' | 'late'
+      })));
     } catch (error) {
       console.error('Error:', error);
       toast.error('Failed to fetch attendance records');

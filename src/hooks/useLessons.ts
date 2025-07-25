@@ -97,6 +97,58 @@ export const useLessons = () => {
     }
   };
 
+  const addLesson = async (lessonData: Omit<LessonWithTests, 'id' | 'created_at' | 'upload_date' | 'pretest' | 'posttest' | 'studentsEnrolled' | 'improvement'>) => {
+    try {
+      const { data, error } = await supabase
+        .from('lessons')
+        .insert([{
+          title: lessonData.title,
+          grade: lessonData.grade,
+          pdf_content: lessonData.pdf_content || null,
+          pdf_filename: lessonData.pdf_filename || null
+        }])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error adding lesson:', error);
+        toast.error('Failed to add lesson');
+        return null;
+      }
+
+      await fetchLessons();
+      toast.success('Lesson added successfully');
+      return data;
+    } catch (error) {
+      console.error('Error:', error);
+      toast.error('Failed to add lesson');
+      return null;
+    }
+  };
+
+  const updateLesson = async (id: string, updates: Partial<LessonWithTests>) => {
+    try {
+      const { error } = await supabase
+        .from('lessons')
+        .update(updates)
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error updating lesson:', error);
+        toast.error('Failed to update lesson');
+        return false;
+      }
+
+      await fetchLessons();
+      toast.success('Lesson updated successfully');
+      return true;
+    } catch (error) {
+      console.error('Error:', error);
+      toast.error('Failed to update lesson');
+      return false;
+    }
+  };
+
   const deleteLesson = async (id: string) => {
     try {
       const { error } = await supabase
@@ -127,6 +179,8 @@ export const useLessons = () => {
   return {
     lessons,
     loading,
+    addLesson,
+    updateLesson,
     fetchLessons,
     deleteLesson,
     refetch: fetchLessons

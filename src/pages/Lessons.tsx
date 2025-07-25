@@ -24,47 +24,36 @@ const Lessons = () => {
   const { lessons, loading, addLesson, updateLesson, deleteLesson } = useLessons();
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedSubject, setSelectedSubject] = useState<string>("all");
+  const [selectedGrade, setSelectedGrade] = useState<string>("all");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newLesson, setNewLesson] = useState({
     title: "",
-    subject: "",
-    description: "",
-    date: "",
-    duration: "",
     grade: ""
   });
 
   const filteredLessons = lessons.filter(lesson => {
-    const matchesSearch = lesson.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         lesson.subject?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesSubject = selectedSubject === "all" || lesson.subject === selectedSubject;
-    return matchesSearch && matchesSubject;
+    const matchesSearch = lesson.title.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesGrade = selectedGrade === "all" || lesson.grade === selectedGrade;
+    return matchesSearch && matchesGrade;
   });
 
   const handleAddLesson = async () => {
-    if (!newLesson.title || !newLesson.subject || !newLesson.date) {
+    if (!newLesson.title || !newLesson.grade) {
       toast.error("Please fill in all required fields");
       return;
     }
 
     const lessonData = {
       title: newLesson.title,
-      subject: newLesson.subject,
-      description: newLesson.description || null,
-      date: newLesson.date,
-      duration: newLesson.duration ? parseInt(newLesson.duration) : null,
-      grade: newLesson.grade || null
+      grade: newLesson.grade,
+      pdf_content: null,
+      pdf_filename: null
     };
 
     const result = await addLesson(lessonData);
     if (result) {
       setNewLesson({
         title: "",
-        subject: "",
-        description: "",
-        date: "",
-        duration: "",
         grade: ""
       });
       setIsAddDialogOpen(false);
@@ -112,20 +101,10 @@ const Lessons = () => {
                 />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="subject" className="text-right">Subject *</Label>
-                <Input
-                  id="subject"
-                  value={newLesson.subject}
-                  onChange={(e) => setNewLesson({...newLesson, subject: e.target.value})}
-                  className="col-span-3"
-                  placeholder="e.g., Mathematics, Science"
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="grade" className="text-right">Grade</Label>
+                <Label htmlFor="grade" className="text-right">Grade *</Label>
                 <Select value={newLesson.grade} onValueChange={(value) => setNewLesson({...newLesson, grade: value})}>
                   <SelectTrigger className="col-span-3">
-                    <SelectValue placeholder="Select grade (optional)" />
+                    <SelectValue placeholder="Select grade" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Grade 9">Grade 9</SelectItem>
@@ -134,38 +113,6 @@ const Lessons = () => {
                     <SelectItem value="Grade 12">Grade 12</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="date" className="text-right">Date *</Label>
-                <Input
-                  id="date"
-                  type="date"
-                  value={newLesson.date}
-                  onChange={(e) => setNewLesson({...newLesson, date: e.target.value})}
-                  className="col-span-3"
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="duration" className="text-right">Duration</Label>
-                <Input
-                  id="duration"
-                  type="number"
-                  value={newLesson.duration}
-                  onChange={(e) => setNewLesson({...newLesson, duration: e.target.value})}
-                  className="col-span-3"
-                  placeholder="Duration in minutes"
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="description" className="text-right">Description</Label>
-                <Textarea
-                  id="description"
-                  value={newLesson.description}
-                  onChange={(e) => setNewLesson({...newLesson, description: e.target.value})}
-                  className="col-span-3"
-                  placeholder="Lesson description and objectives"
-                  rows={3}
-                />
               </div>
             </div>
             <div className="flex justify-end space-x-2">
@@ -190,25 +137,23 @@ const Lessons = () => {
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
               <Input
-                placeholder="Search lessons by title or subject..."
+                placeholder="Search lessons by title..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full"
               />
             </div>
             <div className="w-full sm:w-48">
-              <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+              <Select value={selectedGrade} onValueChange={setSelectedGrade}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Filter by subject" />
+                  <SelectValue placeholder="Filter by grade" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Subjects</SelectItem>
-                  <SelectItem value="Mathematics">Mathematics</SelectItem>
-                  <SelectItem value="Science">Science</SelectItem>
-                  <SelectItem value="English">English</SelectItem>
-                  <SelectItem value="History">History</SelectItem>
-                  <SelectItem value="Art">Art</SelectItem>
-                  <SelectItem value="Physical Education">Physical Education</SelectItem>
+                  <SelectItem value="all">All Grades</SelectItem>
+                  <SelectItem value="Grade 9">Grade 9</SelectItem>
+                  <SelectItem value="Grade 10">Grade 10</SelectItem>
+                  <SelectItem value="Grade 11">Grade 11</SelectItem>
+                  <SelectItem value="Grade 12">Grade 12</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -259,26 +204,25 @@ const Lessons = () => {
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <Badge variant="secondary">{lesson.subject}</Badge>
-                        {lesson.grade && <Badge variant="outline">{lesson.grade}</Badge>}
+                        <Badge variant="secondary">{lesson.grade}</Badge>
+                        {lesson.pdf_filename && <Badge variant="outline">PDF</Badge>}
                       </div>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-2 text-sm">
                         <div className="flex items-center space-x-2 text-muted-foreground">
                           <Calendar className="w-4 h-4" />
-                          <span>{new Date(lesson.date).toLocaleDateString()}</span>
+                          <span>{new Date(lesson.created_at).toLocaleDateString()}</span>
                         </div>
-                        {lesson.duration && (
+                        {lesson.pretest && (
                           <div className="flex items-center space-x-2 text-muted-foreground">
-                            <Clock className="w-4 h-4" />
-                            <span>{lesson.duration} minutes</span>
+                            <span>Pretest: {lesson.pretest.title}</span>
                           </div>
                         )}
-                        {lesson.description && (
-                          <p className="text-muted-foreground mt-2 line-clamp-3">
-                            {lesson.description}
-                          </p>
+                        {lesson.posttest && (
+                          <div className="flex items-center space-x-2 text-muted-foreground">
+                            <span>Posttest: {lesson.posttest.title}</span>
+                          </div>
                         )}
                       </div>
                     </CardContent>
@@ -289,10 +233,10 @@ const Lessons = () => {
                 <div className="text-center py-8">
                   <BookOpen className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                   <p className="text-muted-foreground">
-                    {searchTerm || selectedSubject !== "all" 
-                      ? "No lessons found matching your criteria." 
-                      : "No lessons added yet. Click 'Add Lesson' to get started!"
-                    }
+                  {searchTerm || selectedGrade !== "all" 
+                    ? "No lessons found matching your criteria." 
+                    : "No lessons added yet. Click 'Add Lesson' to get started!"
+                  }
                   </p>
                 </div>
               )}

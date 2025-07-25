@@ -82,7 +82,10 @@ export const useDashboard = () => {
         attendanceRate
       });
 
-      setRecentTests(testsResult.data || []);
+      setRecentTests((testsResult.data || []).map(test => ({
+        ...test,
+        type: test.type as 'pretest' | 'posttest'
+      })));
       setGradePerformance(gradePerf);
 
     } catch (error) {

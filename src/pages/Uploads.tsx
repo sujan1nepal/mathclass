@@ -5,8 +5,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { useSupabaseUploads } from "@/hooks/useSupabaseUploads";
+import { useStudents } from "@/hooks/useStudents";
+import { useStudentScores } from "@/hooks/useStudentScores";
+import { QuestionEditor } from "@/components/TestQuestions/QuestionEditor";
+import { StudentScoreCard } from "@/components/TestScoring/StudentScoreCard";
 import {
   Upload,
   FileText,
@@ -16,352 +22,441 @@ import {
   Trash2,
   Loader2,
   Cloud,
-  HardDrive
+  HardDrive,
+  BookOpen,
+  Plus,
+  Users,
+  BarChart3
 } from "lucide-react";
 
-interface FileUpload {
-  id: string;
-  file_name: string;
-  file_type: string;
-  file_size: number;
-  file_path: string;
-  created_at: string;
-}
-
 const Uploads = () => {
-  const [uploads, setUploads] = useState<FileUpload[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { lessons, tests, testQuestions, loading: uploadsLoading, uploadLesson, uploadTest, deleteLesson, deleteTest, fetchTestQuestions } = useSupabaseUploads();
+  const { students } = useStudents();
+  const { getStudentTestScores, saveBulkScores } = useStudentScores();
+  
+  const [activeTab, setActiveTab] = useState<'lessons' | 'tests' | 'scoring'>('lessons');
+  const [uploadType, setUploadType] = useState<'lesson' | 'pretest' | 'posttest'>('lesson');
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [dragActive, setDragActive] = useState(false);
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
+  const [selectedTest, setSelectedTest] = useState<string>('');
+  const [studentTestScores, setStudentTestScores] = useState<any[]>([]);
+  const [scoringLoading, setScoringLoading] = useState(false);
+  
+  const [uploadForm, setUploadForm] = useState({
+    title: '',
+    grade: '',
+    lessonId: ''
+  });
 
-  const fetchUploads = async () => {
-    try {
-      // Use lessons table to display uploaded files since file_uploads table doesn't exist
-      const { data, error } = await supabase
-        .from('lessons')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching uploads:', JSON.stringify(error, null, 2));
-        toast.error(`Failed to fetch files: ${error.message || 'Unknown error'}`);
-        setUploads([]);
-        return;
-      }
-
-      // Map lessons data to upload format
-      const mappedUploads = (data || []).map(lesson => ({
-        id: lesson.id,
-        file_name: lesson.pdf_filename || lesson.title,
-        file_type: 'application/pdf',
-        file_size: 0, // We don't have size info
-        file_path: lesson.pdf_filename || '',
-        created_at: lesson.created_at
-      }));
-
-      setUploads(mappedUploads);
-    } catch (error) {
-      console.error('Error:', error);
-      toast.error('Failed to fetch files');
-      setUploads([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const uploadFile = async (file: File) => {
-    try {
-      // For demo purposes, create a lesson entry for the uploaded file
-      const { error } = await supabase
-        .from('lessons')
-        .insert([{
-          title: file.name,
-          grade: 'General',
-          pdf_filename: file.name,
-          pdf_content: null
-        }]);
-
-      if (error) {
-        console.error('Upload error:', JSON.stringify(error, null, 2));
-        toast.error(`Upload failed: ${error.message || 'Unknown error'}`);
-        return false;
-      }
-
-      await fetchUploads();
-      return true;
-    } catch (error) {
-      console.error('Upload error:', error);
-      toast.error('Upload failed');
+  const handleFileUpload = async (file: File) => {
+    if (!uploadForm.title || !uploadForm.grade) {
+      toast.error('Please fill in title and grade before uploading');
       return false;
     }
-  };
 
-  const deleteFile = async (id: string) => {
     try {
-      const { error } = await supabase
-        .from('lessons')
-        .delete()
-        .eq('id', id);
+      setUploading(true);
+      setUploadProgress(50);
 
-      if (error) {
-        console.error('Delete error:', JSON.stringify(error, null, 2));
-        toast.error(`Delete failed: ${error.message || 'Unknown error'}`);
-        return false;
+      let result;
+      if (uploadType === 'lesson') {
+        result = await uploadLesson(file, uploadForm.title, uploadForm.grade);
+      } else {
+        result = await uploadTest(file, uploadForm.title, uploadType, uploadForm.grade, uploadForm.lessonId || undefined);
       }
 
-      await fetchUploads();
-      toast.success('File deleted successfully');
-      return true;
-    } catch (error) {
-      console.error('Delete error:', error);
-      toast.error('Failed to delete file');
-      return false;
-    }
-  };
-
-  const downloadFile = async (filePath: string, fileName: string) => {
-    try {
-      // For demo purposes, just show a message since we don't have actual file storage
-      toast.info(`Download functionality not available for ${fileName} - Demo mode`);
-      return true;
-    } catch (error) {
-      console.error('Download error:', error);
-      toast.error('Download failed');
-      return false;
-    }
-  };
-
-  useEffect(() => {
-    fetchUploads();
-  }, []);
-
-  const handleDrag = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
-    } else if (e.type === "dragleave") {
-      setDragActive(false);
-    }
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFiles(e.dataTransfer.files);
-    }
-  }, []);
-
-  const handleFiles = async (files: FileList) => {
-    if (files.length === 0) return;
-    
-    setUploading(true);
-    setUploadProgress(0);
-    
-    try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        setUploadProgress((i / files.length) * 100);
-        
-        const result = await uploadFile(file);
-        if (result) {
-          toast.success(`${file.name} uploaded successfully`);
-        } else {
-          toast.error(`Failed to upload ${file.name}`);
-        }
-      }
       setUploadProgress(100);
+      
+      if (result) {
+        setUploadForm({ title: '', grade: '', lessonId: '' });
+        setIsUploadDialogOpen(false);
+        return true;
+      }
+      return false;
     } catch (error) {
       console.error('Upload error:', error);
-      toast.error('Upload failed');
+      return false;
     } finally {
       setUploading(false);
       setUploadProgress(0);
     }
   };
 
+  const loadTestScoring = async (testId: string) => {
+    setScoringLoading(true);
+    try {
+      await fetchTestQuestions(testId);
+      const scores = await getStudentTestScores(testId);
+      setStudentTestScores(scores);
+    } catch (error) {
+      console.error('Error loading test scoring:', error);
+      toast.error('Failed to load test scoring');
+    } finally {
+      setScoringLoading(false);
+    }
+  };
+
+  const handleSaveStudentScores = async (studentId: string, scores: Array<{ questionId: string; marks: number }>) => {
+    const scoreRecords = scores.map(score => ({
+      studentId,
+      testQuestionId: score.questionId,
+      scoredMarks: score.marks
+    }));
+
+    const success = await saveBulkScores(scoreRecords);
+    if (success && selectedTest) {
+      await loadTestScoring(selectedTest);
+    }
+  };
+
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      handleFiles(e.target.files);
+    if (e.target.files && e.target.files[0]) {
+      handleFileUpload(e.target.files[0]);
     }
   };
-
-  const handleDownload = async (upload: any) => {
-    const success = await downloadFile(upload.file_path, upload.file_name);
-    if (!success) {
-      toast.error('Failed to download file');
-    }
-  };
-
-  const handleDelete = async (id: string, fileName: string) => {
-    if (confirm(`Are you sure you want to delete ${fileName}?`)) {
-      await deleteFile(id);
-    }
-  };
-
-  const getFileIcon = (fileType: string) => {
-    if (fileType.startsWith('image/')) {
-      return <Image className="w-8 h-8 text-blue-500" />;
-    } else if (fileType.includes('pdf')) {
-      return <FileText className="w-8 h-8 text-red-500" />;
-    } else {
-      return <File className="w-8 h-8 text-gray-500" />;
-    }
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
-  const totalStorage = (uploads || []).reduce((sum, upload) => sum + (upload.file_size || 0), 0);
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">File Uploads</h1>
-          <p className="text-muted-foreground">Manage your files and documents</p>
+          <h1 className="text-3xl font-bold text-foreground">Content Management</h1>
+          <p className="text-muted-foreground">Upload lessons, tests and manage student scoring</p>
         </div>
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-            <HardDrive className="w-4 h-4" />
-            <span>Storage: {formatFileSize(totalStorage)}</span>
-          </div>
-        </div>
+        <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="bg-gradient-to-r from-primary to-secondary text-white">
+              <Plus className="w-4 h-4 mr-2" />
+              Upload Content
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Upload New Content</DialogTitle>
+              <DialogDescription>
+                Upload PDF lessons or tests with automatic text extraction and question parsing.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Content Type</Label>
+                <Select value={uploadType} onValueChange={(value: any) => setUploadType(value)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="lesson">Lesson Plan</SelectItem>
+                    <SelectItem value="pretest">Pre-test</SelectItem>
+                    <SelectItem value="posttest">Post-test</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <Label>Title</Label>
+                <Input
+                  value={uploadForm.title}
+                  onChange={(e) => setUploadForm({ ...uploadForm, title: e.target.value })}
+                  placeholder="Enter title"
+                />
+              </div>
+              
+              <div>
+                <Label>Grade</Label>
+                <Select value={uploadForm.grade} onValueChange={(value) => setUploadForm({ ...uploadForm, grade: value })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select grade" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Grade 9">Grade 9</SelectItem>
+                    <SelectItem value="Grade 10">Grade 10</SelectItem>
+                    <SelectItem value="Grade 11">Grade 11</SelectItem>
+                    <SelectItem value="Grade 12">Grade 12</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {uploadType !== 'lesson' && (
+                <div>
+                  <Label>Associated Lesson (Optional)</Label>
+                  <Select value={uploadForm.lessonId} onValueChange={(value) => setUploadForm({ ...uploadForm, lessonId: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select lesson" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {lessons.filter(l => l.grade === uploadForm.grade).map(lesson => (
+                        <SelectItem key={lesson.id} value={lesson.id}>
+                          {lesson.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              
+              <div>
+                <Label>PDF File</Label>
+                <Input
+                  type="file"
+                  accept=".pdf"
+                  onChange={handleFileInput}
+                  disabled={uploading}
+                />
+              </div>
+              
+              {uploading && (
+                <div className="space-y-2">
+                  <Progress value={uploadProgress} />
+                  <p className="text-sm text-muted-foreground">Processing PDF and extracting content...</p>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
-      {/* Upload Area */}
-      <Card className="border-0 shadow-lg">
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Cloud className="w-5 h-5" />
-            <span>Upload Files</span>
-          </CardTitle>
-          <CardDescription>
-            Drag and drop files here or click to browse
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div
-            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-              dragActive 
-                ? 'border-primary bg-primary/5' 
-                : 'border-border hover:border-primary/50'
-            }`}
-            onDragEnter={handleDrag}
-            onDragLeave={handleDrag}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
-          >
-            {uploading ? (
-              <div className="space-y-4">
-                <Loader2 className="w-12 h-12 animate-spin mx-auto text-primary" />
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Uploading files...</p>
-                  <Progress value={uploadProgress} className="max-w-xs mx-auto" />
-                  <p className="text-xs text-muted-foreground">{uploadProgress.toFixed(0)}% complete</p>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <Upload className="w-12 h-12 mx-auto text-muted-foreground" />
-                <div className="space-y-2">
-                  <p className="text-lg font-medium">Drop files here to upload</p>
-                  <p className="text-sm text-muted-foreground">
-                    Supports images, PDFs, documents, and more
-                  </p>
-                  <Label htmlFor="file-upload">
-                    <Button variant="outline" className="cursor-pointer">
-                      Browse Files
-                    </Button>
-                  </Label>
-                  <Input
-                    id="file-upload"
-                    type="file"
-                    multiple
-                    onChange={handleFileInput}
-                    className="hidden"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      {/* Navigation Tabs */}
+      <div className="flex space-x-4 border-b">
+        <button
+          onClick={() => setActiveTab('lessons')}
+          className={`pb-2 px-1 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'lessons' 
+              ? 'border-primary text-primary' 
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <BookOpen className="w-4 h-4 inline mr-2" />
+          Lessons ({lessons.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('tests')}
+          className={`pb-2 px-1 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'tests' 
+              ? 'border-primary text-primary' 
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <FileText className="w-4 h-4 inline mr-2" />
+          Tests ({tests.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('scoring')}
+          className={`pb-2 px-1 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'scoring' 
+              ? 'border-primary text-primary' 
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <BarChart3 className="w-4 h-4 inline mr-2" />
+          Student Scoring
+        </button>
+      </div>
 
-      {/* Files List */}
-      <Card className="border-0 shadow-lg">
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <FileText className="w-5 h-5" />
-            <span>Your Files ({(uploads || []).length})</span>
-          </CardTitle>
-          <CardDescription>
-            Manage and download your uploaded files
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin" />
-            </div>
-          ) : (uploads || []).length > 0 ? (
-            <div className="space-y-4">
-              {(uploads || []).map((upload) => (
-                <div
-                  key={upload.id}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-                >
-                  <div className="flex items-center space-x-4">
-                    {getFileIcon(upload.file_type || '')}
-                    <div>
-                      <p className="font-medium">{upload.file_name}</p>
-                      <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                        <Badge variant="outline">{upload.file_type}</Badge>
-                        <span>{formatFileSize(upload.file_size || 0)}</span>
-                        <span>•</span>
-                        <span>{new Date(upload.created_at).toLocaleDateString()}</span>
+      {/* Tab Content */}
+      {activeTab === 'lessons' && (
+        <Card className="border-0 shadow-lg">
+          <CardHeader>
+            <CardTitle>Uploaded Lessons</CardTitle>
+            <CardDescription>PDF lessons with extracted content</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {uploadsLoading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin" />
+              </div>
+            ) : lessons.length > 0 ? (
+              <div className="space-y-4">
+                {lessons.map((lesson) => (
+                  <div key={lesson.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex items-center space-x-4">
+                      <FileText className="w-8 h-8 text-blue-500" />
+                      <div>
+                        <p className="font-medium">{lesson.title}</p>
+                        <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                          <Badge variant="outline">{lesson.grade}</Badge>
+                          {lesson.pdf_filename && <Badge variant="secondary">PDF</Badge>}
+                          <span>{new Date(lesson.created_at).toLocaleDateString()}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex items-center space-x-2">
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleDownload(upload)}
-                    >
-                      <Download className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDelete(upload.id, upload.file_name)}
+                      onClick={() => deleteLesson(lesson.id)}
                       className="text-destructive hover:text-destructive"
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <BookOpen className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">No lessons uploaded yet.</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {activeTab === 'tests' && (
+        <Card className="border-0 shadow-lg">
+          <CardHeader>
+            <CardTitle>Uploaded Tests</CardTitle>
+            <CardDescription>Pre-tests and post-tests with auto-parsed questions</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {uploadsLoading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin" />
+              </div>
+            ) : tests.length > 0 ? (
+              <div className="space-y-4">
+                {tests.map((test) => (
+                  <div key={test.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex items-center space-x-4">
+                      <FileText className="w-8 h-8 text-green-500" />
+                      <div>
+                        <p className="font-medium">{test.title}</p>
+                        <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                          <Badge variant={test.type === 'pretest' ? 'default' : 'secondary'}>
+                            {test.type}
+                          </Badge>
+                          <Badge variant="outline">{test.grade}</Badge>
+                          <Badge variant="outline">{test.total_marks} marks</Badge>
+                          <span>{new Date(test.created_at).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedTest(test.id);
+                          setActiveTab('scoring');
+                          loadTestScoring(test.id);
+                        }}
+                      >
+                        <Users className="w-4 h-4 mr-2" />
+                        Score Students
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => deleteTest(test.id)}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">No tests uploaded yet.</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {activeTab === 'scoring' && (
+        <div className="space-y-6">
+          <Card className="border-0 shadow-lg">
+            <CardHeader>
+              <CardTitle>Student Test Scoring</CardTitle>
+              <CardDescription>Enter marks for each student per question</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div>
+                  <Label>Select Test</Label>
+                  <Select value={selectedTest} onValueChange={(value) => {
+                    setSelectedTest(value);
+                    loadTestScoring(value);
+                  }}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose a test to score" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tests.map(test => (
+                        <SelectItem key={test.id} value={test.id}>
+                          {test.title} ({test.type}) - {test.grade}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">
-                No files uploaded yet. Upload your first file to get started!
-              </p>
-            </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {selectedTest && testQuestions.length > 0 && (
+            <>
+              <Card className="border-0 shadow-lg">
+                <CardHeader>
+                  <CardTitle>Test Questions</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <QuestionEditor 
+                    questions={testQuestions} 
+                    onUpdate={() => {}} 
+                    disabled={true}
+                  />
+                </CardContent>
+              </Card>
+
+              <Card className="border-0 shadow-lg">
+                <CardHeader>
+                  <CardTitle>Student Scores</CardTitle>
+                  <CardDescription>Enter marks for each student</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {scoringLoading ? (
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {students
+                        .filter(student => {
+                          const selectedTestData = tests.find(t => t.id === selectedTest);
+                          return student.grade === selectedTestData?.grade;
+                        })
+                        .map(student => {
+                          const existingScores = studentTestScores.find(s => s.student_id === student.id);
+                          return (
+                            <StudentScoreCard
+                              key={student.id}
+                              student={student}
+                              questions={testQuestions}
+                              existingScores={existingScores}
+                              onSave={handleSaveStudentScores}
+                            />
+                          );
+                        })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </>
           )}
-        </CardContent>
-      </Card>
+
+          {selectedTest && testQuestions.length === 0 && !scoringLoading && (
+            <Card className="border-0 shadow-lg">
+              <CardContent className="text-center py-8">
+                <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">No questions found for this test.</p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
     </div>
   );
 };
