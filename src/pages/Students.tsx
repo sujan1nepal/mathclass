@@ -1,13 +1,16 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useStudents } from "@/hooks/useStudents";
+import { useStudentScores } from "@/hooks/useStudentScores";
+import { useSupabaseUploads } from "@/hooks/useSupabaseUploads";
 import { StudentDetailView } from "@/components/StudentProfile/StudentDetailView";
 import { 
   Plus, 
@@ -17,17 +20,33 @@ import {
   Edit,
   Trash2,
   UserPlus,
-  Loader2
+  Loader2,
+  TrendingUp,
+  Award,
+  BookOpen,
+  BarChart3
 } from "lucide-react";
+
+interface StudentPerformance {
+  studentId: string;
+  averageScore: number;
+  testsCompleted: number;
+  lessonsStarted: number;
+  improvement: number;
+}
 
 const Students = () => {
   const { students, loading, addStudent, updateStudent, deleteStudent } = useStudents();
+  const { getStudentTestScores } = useStudentScores();
+  const { tests, lessons } = useSupabaseUploads();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedGrade, setSelectedGrade] = useState<string>("all");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [isDetailViewOpen, setIsDetailViewOpen] = useState(false);
+  const [studentPerformances, setStudentPerformances] = useState<Record<string, StudentPerformance>>({});
+  const [performanceLoading, setPerformanceLoading] = useState(false);
   const [newStudent, setNewStudent] = useState({
     name: "",
     grade: "",
@@ -35,6 +54,74 @@ const Students = () => {
     date_of_birth: "",
     contact_info: ""
   });
+
+  useEffect(() => {
+    if (students.length > 0 && tests.length > 0) {
+      loadStudentPerformances();
+    }
+  }, [students, tests]);
+
+  const loadStudentPerformances = async () => {
+    setPerformanceLoading(true);
+    try {
+      const performances: Record<string, StudentPerformance> = {};
+      
+      for (const student of students) {
+        const studentTests = tests.filter(test => test.grade === student.grade);
+        const studentLessons = lessons.filter(lesson => lesson.grade === student.grade);
+        
+        let totalScore = 0;
+        let totalPossible = 0;
+        let testsCompleted = 0;
+        let pretestAvg = 0;
+        let posttestAvg = 0;
+        let pretestCount = 0;
+        let posttestCount = 0;
+
+        for (const test of studentTests) {
+          try {
+            const testScores = await getStudentTestScores(test.id);
+            const studentScore = testScores.find(score => score.student_id === student.id);
+            
+            if (studentScore && studentScore.total_possible > 0) {
+              totalScore += studentScore.total_scored;
+              totalPossible += studentScore.total_possible;
+              testsCompleted++;
+
+              if (test.type === 'pretest') {
+                pretestAvg += studentScore.percentage;
+                pretestCount++;
+              } else if (test.type === 'posttest') {
+                posttestAvg += studentScore.percentage;
+                posttestCount++;
+              }
+            }
+          } catch (error) {
+            console.error(`Error loading scores for test ${test.id}:`, error);
+          }
+        }
+
+        const averageScore = totalPossible > 0 ? Math.round((totalScore / totalPossible) * 100) : 0;
+        const improvement = pretestCount > 0 && posttestCount > 0 
+          ? Math.round((posttestAvg / posttestCount) - (pretestAvg / pretestCount))
+          : 0;
+
+        performances[student.id] = {
+          studentId: student.id,
+          averageScore,
+          testsCompleted,
+          lessonsStarted: studentLessons.length,
+          improvement
+        };
+      }
+
+      setStudentPerformances(performances);
+    } catch (error) {
+      console.error('Error loading student performances:', error);
+    } finally {
+      setPerformanceLoading(false);
+    }
+  };
 
   const filteredStudents = students.filter(student => {
     const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -66,6 +153,8 @@ const Students = () => {
         contact_info: ""
       });
       setIsAddDialogOpen(false);
+      // Reload performances for the new student
+      setTimeout(() => loadStudentPerformances(), 1000);
     }
   };
 
@@ -95,16 +184,28 @@ const Students = () => {
     toast.info(`Editing ${student.name} - Feature coming soon!`);
   };
 
+  const getPerformanceColor = (score: number) => {
+    if (score >= 80) return "text-green-700";
+    if (score >= 60) return "text-yellow-700";
+    return "text-red-700";
+  };
+
+  const getPerformanceBg = (score: number) => {
+    if (score >= 80) return "bg-green-50 border-green-200";
+    if (score >= 60) return "bg-yellow-50 border-yellow-200";
+    return "bg-red-50 border-red-200";
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Students</h1>
-          <p className="text-muted-foreground">Manage student profiles and information</p>
+          <p className="text-muted-foreground">Manage student profiles and track their academic progress</p>
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-gradient-to-r from-primary to-secondary text-white">
+            <Button className="bg-gradient-to-r from-primary to-secondary text-white shadow-lg hover:shadow-xl transition-all">
               <UserPlus className="w-4 h-4 mr-2" />
               Add Student
             </Button>
@@ -197,7 +298,7 @@ const Students = () => {
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
               <Input
-                placeholder="Search students by name or email..."
+                placeholder="Search students by name..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full"
@@ -217,6 +318,19 @@ const Students = () => {
                 </SelectContent>
               </Select>
             </div>
+            <Button 
+              variant="outline" 
+              onClick={loadStudentPerformances}
+              disabled={performanceLoading}
+              className="w-full sm:w-auto"
+            >
+              {performanceLoading ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <BarChart3 className="w-4 h-4 mr-2" />
+              )}
+              Refresh Performance
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -229,7 +343,7 @@ const Students = () => {
             <span>Students ({filteredStudents.length})</span>
           </CardTitle>
           <CardDescription>
-            Manage student profiles and view their performance
+            Click on a student's name to view detailed progress and lesson scores
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -239,59 +353,132 @@ const Students = () => {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-                {filteredStudents.map((student) => (
-                  <Card key={student.id} className="border border-border hover:shadow-md transition-shadow">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-lg">{student.name}</CardTitle>
-                        <div className="flex space-x-1">
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleViewStudent(student)}
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                {filteredStudents.map((student) => {
+                  const performance = studentPerformances[student.id];
+                  return (
+                    <Card 
+                      key={student.id} 
+                      className={`border transition-all duration-200 hover:shadow-lg cursor-pointer ${
+                        performance ? getPerformanceBg(performance.averageScore) : 'border-border hover:shadow-md'
+                      }`}
+                      onClick={() => handleViewStudent(student)}
+                    >
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between">
+                          <CardTitle 
+                            className={`text-lg hover:text-primary transition-colors ${
+                              performance ? getPerformanceColor(performance.averageScore) : ''
+                            }`}
                           >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleEditStudent(student)}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleDeleteStudent(student.id)}
-                            className="text-destructive hover:text-destructive"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                            {student.name}
+                          </CardTitle>
+                          <div className="flex space-x-1" onClick={(e) => e.stopPropagation()}>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => handleViewStudent(student)}
+                              title="View Details"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => handleEditStudent(student)}
+                              title="Edit Student"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => handleDeleteStudent(student.id)}
+                              className="text-destructive hover:text-destructive"
+                              title="Delete Student"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Badge variant="outline">{student.grade}</Badge>
-                        <Badge variant="outline">{student.gender}</Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2 text-sm">
-                        {student.date_of_birth && (
-                          <p><span className="font-medium">DOB:</span> {new Date(student.date_of_birth).toLocaleDateString()}</p>
+                        <div className="flex items-center space-x-2">
+                          <Badge variant="outline">{student.grade}</Badge>
+                          <Badge variant="outline">{student.gender}</Badge>
+                          {performance && (
+                            <Badge 
+                              variant={getScoreBadgeVariant(performance.averageScore)}
+                              className="font-semibold"
+                            >
+                              {performance.averageScore}% avg
+                            </Badge>
+                          )}
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        {performance && (
+                          <div className="space-y-3 mb-4">
+                            {/* Performance Metrics */}
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                              <div className="flex items-center space-x-2">
+                                <Award className="w-4 h-4 text-primary" />
+                                <span className="text-muted-foreground">Tests:</span>
+                                <span className="font-medium">{performance.testsCompleted}</span>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <BookOpen className="w-4 h-4 text-secondary" />
+                                <span className="text-muted-foreground">Lessons:</span>
+                                <span className="font-medium">{performance.lessonsStarted}</span>
+                              </div>
+                            </div>
+                            
+                            {/* Progress Bar */}
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-muted-foreground">Overall Progress</span>
+                                <span className="font-medium">{performance.averageScore}%</span>
+                              </div>
+                              <Progress value={performance.averageScore} className="h-2" />
+                            </div>
+                            
+                            {/* Improvement Indicator */}
+                            {performance.improvement !== 0 && (
+                              <div className="flex items-center justify-center">
+                                <Badge 
+                                  variant={performance.improvement > 0 ? "default" : "destructive"}
+                                  className={`text-xs ${performance.improvement > 0 ? "bg-green-100 text-green-700 border-green-200" : ""}`}
+                                >
+                                  <TrendingUp className="w-3 h-3 mr-1" />
+                                  {performance.improvement > 0 ? '+' : ''}{performance.improvement}% improvement
+                                </Badge>
+                              </div>
+                            )}
+                          </div>
                         )}
-                        {student.contact_info && (
-                          <p><span className="font-medium">Contact:</span> {
-                            typeof student.contact_info === 'object' 
-                              ? student.contact_info.contact || 'N/A'
-                              : student.contact_info
-                          }</p>
+                        
+                        <div className="space-y-2 text-sm border-t border-border/50 pt-3">
+                          {student.date_of_birth && (
+                            <p><span className="font-medium">DOB:</span> {new Date(student.date_of_birth).toLocaleDateString()}</p>
+                          )}
+                          {student.contact_info && (
+                            <p><span className="font-medium">Contact:</span> {
+                              typeof student.contact_info === 'object' 
+                                ? student.contact_info.contact || 'N/A'
+                                : student.contact_info
+                            }</p>
+                          )}
+                          <p><span className="font-medium">Added:</span> {new Date(student.created_at).toLocaleDateString()}</p>
+                        </div>
+                        
+                        {!performance && !performanceLoading && (
+                          <div className="text-center py-4 text-muted-foreground">
+                            <BarChart3 className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                            <p className="text-sm">Click to view progress</p>
+                          </div>
                         )}
-                        <p><span className="font-medium">Added:</span> {new Date(student.created_at).toLocaleDateString()}</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
               {filteredStudents.length === 0 && !loading && (
                 <div className="text-center py-8">
