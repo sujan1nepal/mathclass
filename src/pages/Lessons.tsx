@@ -3,18 +3,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useLessons } from "@/hooks/useLessons";
+import { PDFViewer } from "@/components/PDFViewer/PDFViewer";
 import { 
   Plus, 
   Search, 
   BookOpen, 
   Calendar,
-  Clock,
   Edit,
   Trash2,
   Loader2
@@ -181,52 +180,38 @@ const Lessons = () => {
             <>
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
                 {filteredLessons.map((lesson) => (
-                  <Card key={lesson.id} className="border border-border hover:shadow-md transition-shadow">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-lg">{lesson.title}</CardTitle>
-                        <div className="flex space-x-1">
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleEditLesson(lesson)}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleDeleteLesson(lesson.id)}
-                            className="text-destructive hover:text-destructive"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Badge variant="secondary">{lesson.grade}</Badge>
-                        {lesson.pdf_filename && <Badge variant="outline">PDF</Badge>}
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex items-center space-x-2 text-muted-foreground">
-                          <Calendar className="w-4 h-4" />
-                          <span>{new Date(lesson.created_at).toLocaleDateString()}</span>
-                        </div>
-                        {lesson.pretest && (
-                          <div className="flex items-center space-x-2 text-muted-foreground">
-                            <span>Pretest: {lesson.pretest.title}</span>
-                          </div>
-                        )}
-                        {lesson.posttest && (
-                          <div className="flex items-center space-x-2 text-muted-foreground">
-                            <span>Posttest: {lesson.posttest.title}</span>
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <div key={lesson.id} className="relative">
+                    <PDFViewer
+                      title={lesson.title}
+                      content={lesson.pdf_content}
+                      filename={lesson.pdf_filename}
+                      grade={lesson.grade}
+                    />
+                    <div className="absolute top-4 right-4 flex space-x-1">
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => handleEditLesson(lesson)}
+                        className="bg-white/80 hover:bg-white"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => handleDeleteLesson(lesson.id)}
+                        className="text-destructive hover:text-destructive bg-white/80 hover:bg-white"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    <div className="mt-2 text-sm text-muted-foreground flex items-center space-x-2">
+                      <Calendar className="w-4 h-4" />
+                      <span>{new Date(lesson.created_at).toLocaleDateString()}</span>
+                      {lesson.pretest && <span>• Pretest: {lesson.pretest.title}</span>}
+                      {lesson.posttest && <span>• Posttest: {lesson.posttest.title}</span>}
+                    </div>
+                  </div>
                 ))}
               </div>
               {filteredLessons.length === 0 && !loading && (

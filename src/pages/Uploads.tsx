@@ -13,6 +13,7 @@ import { useStudents } from "@/hooks/useStudents";
 import { useStudentScores } from "@/hooks/useStudentScores";
 import { QuestionEditor } from "@/components/TestQuestions/QuestionEditor";
 import { StudentScoreCard } from "@/components/TestScoring/StudentScoreCard";
+import { PDFViewer } from "@/components/PDFViewer/PDFViewer";
 import {
   Upload,
   FileText,
@@ -268,26 +269,26 @@ const Uploads = () => {
             ) : lessons.length > 0 ? (
               <div className="space-y-4">
                 {lessons.map((lesson) => (
-                  <div key={lesson.id} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex items-center space-x-4">
-                      <FileText className="w-8 h-8 text-blue-500" />
-                      <div>
-                        <p className="font-medium">{lesson.title}</p>
-                        <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                          <Badge variant="outline">{lesson.grade}</Badge>
-                          {lesson.pdf_filename && <Badge variant="secondary">PDF</Badge>}
-                          <span>{new Date(lesson.created_at).toLocaleDateString()}</span>
-                        </div>
-                      </div>
+                  <div key={lesson.id} className="relative">
+                    <PDFViewer
+                      title={lesson.title}
+                      content={lesson.pdf_content}
+                      filename={lesson.pdf_filename}
+                      grade={lesson.grade}
+                    />
+                    <div className="absolute top-4 right-4">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => deleteLesson(lesson.id)}
+                        className="text-destructive hover:text-destructive bg-white/80 hover:bg-white"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => deleteLesson(lesson.id)}
-                      className="text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    <div className="mt-2 text-sm text-muted-foreground">
+                      <span>{new Date(lesson.created_at).toLocaleDateString()}</span>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -315,22 +316,16 @@ const Uploads = () => {
             ) : tests.length > 0 ? (
               <div className="space-y-4">
                 {tests.map((test) => (
-                  <div key={test.id} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex items-center space-x-4">
-                      <FileText className="w-8 h-8 text-green-500" />
-                      <div>
-                        <p className="font-medium">{test.title}</p>
-                        <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                          <Badge variant={test.type === 'pretest' ? 'default' : 'secondary'}>
-                            {test.type}
-                          </Badge>
-                          <Badge variant="outline">{test.grade}</Badge>
-                          <Badge variant="outline">{test.total_marks} marks</Badge>
-                          <span>{new Date(test.created_at).toLocaleDateString()}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex space-x-2">
+                  <div key={test.id} className="relative">
+                    <PDFViewer
+                      title={test.title}
+                      content={test.pdf_content}
+                      filename={test.pdf_filename}
+                      grade={test.grade}
+                      type={test.type}
+                      totalMarks={test.total_marks}
+                    />
+                    <div className="absolute top-4 right-4 flex space-x-2">
                       <Button
                         variant="outline"
                         size="sm"
@@ -339,6 +334,7 @@ const Uploads = () => {
                           setActiveTab('scoring');
                           loadTestScoring(test.id);
                         }}
+                        className="bg-white/80 hover:bg-white"
                       >
                         <Users className="w-4 h-4 mr-2" />
                         Score Students
@@ -347,10 +343,13 @@ const Uploads = () => {
                         variant="ghost"
                         size="sm"
                         onClick={() => deleteTest(test.id)}
-                        className="text-destructive hover:text-destructive"
+                        className="text-destructive hover:text-destructive bg-white/80 hover:bg-white"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
+                    </div>
+                    <div className="mt-2 text-sm text-muted-foreground">
+                      <span>{new Date(test.created_at).toLocaleDateString()}</span>
                     </div>
                   </div>
                 ))}

@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useStudents } from "@/hooks/useStudents";
+import { StudentDetailView } from "@/components/StudentProfile/StudentDetailView";
 import { 
   Plus, 
   Search, 
@@ -25,6 +26,8 @@ const Students = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedGrade, setSelectedGrade] = useState<string>("all");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<any>(null);
+  const [isDetailViewOpen, setIsDetailViewOpen] = useState(false);
   const [newStudent, setNewStudent] = useState({
     name: "",
     grade: "",
@@ -83,8 +86,8 @@ const Students = () => {
   };
 
   const handleViewStudent = (student: any) => {
-    // TODO: Implement student details view
-    toast.info(`Viewing details for ${student.name} - Feature coming soon!`);
+    setSelectedStudent(student);
+    setIsDetailViewOpen(true);
   };
 
   const handleEditStudent = (student: any) => {
@@ -305,6 +308,18 @@ const Students = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Student Detail View Dialog */}
+      {selectedStudent && (
+        <StudentDetailView
+          student={selectedStudent}
+          isOpen={isDetailViewOpen}
+          onClose={() => {
+            setIsDetailViewOpen(false);
+            setSelectedStudent(null);
+          }}
+        />
+      )}
     </div>
   );
 };
