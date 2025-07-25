@@ -51,9 +51,17 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
 };
 
 export const parseTestQuestions = (text: string): Array<{ question: string; marks: number }> => {
-  // Simple parsing logic - split by numbers and look for mark patterns
+  console.log('📄 Parsing PDF text for questions:', text.substring(0, 500) + '...');
+  
+  if (!text || text.trim().length === 0) {
+    console.warn('⚠️ No text content found in PDF');
+    return [];
+  }
+  
   const lines = text.split('\n').filter(line => line.trim().length > 0);
   const questions: Array<{ question: string; marks: number }> = [];
+  
+  console.log(`📝 Processing ${lines.length} lines from PDF`);
   
   let currentQuestion = '';
   let currentMarks = 0;
@@ -61,43 +69,143 @@ export const parseTestQuestions = (text: string): Array<{ question: string; mark
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
     
-    // Check if line starts with a number (potential question)
-    const questionMatch = line.match(/^(\d+)\.?\s+(.*)/);
+    // Multiple question number patterns to catch different formats
+    const questionPatterns = [
+      /^(\d+)\.?\s+(.*)/,           // 1. Question text or 1) Question text
+      /^Question\s+(\d+):?\s+(.*)/i, // Question 1: Text
+      /^Q\.?\s*(\d+):?\s+(.*)/i,    // Q1: Text or Q.1 Text
+      /^\((\d+)\)\s+(.*)/,          // (1) Question text
+      /^(\d+)\)\s+(.*)/             // 1) Question text
+    ];
+    
+    let questionMatch = null;
+    for (const pattern of questionPatterns) {
+      questionMatch = line.match(pattern);
+      if (questionMatch) break;
+    }
+    
     if (questionMatch) {
       // Save previous question if exists
-      if (currentQuestion) {
-        questions.push({ question: currentQuestion, marks: currentMarks });
+      if (currentQuestion && currentQuestion.trim().length > 0) {
+        questions.push({ 
+          question: currentQuestion.trim(), 
+          marks: currentMarks || 1 
+        });
+        console.log(`✅ Found question ${questions.length}: "${currentQuestion.substring(0, 50)}..." (${currentMarks || 1} marks)`);
       }
       
-      currentQuestion = questionMatch[2];
+      const questionNumber = questionMatch[1];
+      currentQuestion = questionMatch[2] || '';
       currentMarks = 0;
       
-      // Look for marks in current line or next few lines
-      const marksMatch = line.match(/\[(\d+)\s*marks?\]|\((\d+)\s*marks?\)|(\d+)\s*marks?/i);
-      if (marksMatch) {
-        currentMarks = parseInt(marksMatch[1] || marksMatch[2] || marksMatch[3]);
-      } else {
-        // Check next few lines for marks
-        for (let j = i + 1; j < Math.min(i + 3, lines.length); j++) {
-          const nextLine = lines[j];
-          const nextMarksMatch = nextLine.match(/\[(\d+)\s*marks?\]|\((\d+)\s*marks?\)|(\d+)\s*marks?/i);
-          if (nextMarksMatch) {
-            currentMarks = parseInt(nextMarksMatch[1] || nextMarksMatch[2] || nextMarksMatch[3]);
-            break;
-          }
+      // Multiple marks patterns to catch different formats
+      const marksPatterns = [
+        /\[(\d+)\s*marks?\]/i,        // [5 marks]
+        /\((\d+)\s*marks?\)/i,        // (5 marks)
+        /(\d+)\s*marks?/i,            // 5 marks
+        /\[(\d+)\s*pts?\]/i,          // [5 pts]
+        /\((\d+)\s*pts?\)/i,          // (5 pts)
+        /(\d+)\s*pts?/i,              // 5 pts
+        /\[(\d+)\]/,                  // [5]
+        /\((\d+)\)/                   // (5)
+      ];
+      
+      // Check current line for marks
+      let marksFound = false;
+      for (const pattern of marksPatterns) {
+        const marksMatch = line.match(pattern);
+        if (marksMatch) {
+          currentMarks = parseInt(marksMatch[1]);
+          marksFound = true;
+          break;
         }
-        // Default to 1 mark if no marks found
-        if (currentMarks === 0) currentMarks = 1;
       }
+      
+      // If no marks found in current line, check next few lines
+      if (!marksFound) {
+        for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
+          const nextLine = lines[j].trim();
+          
+          // Stop if we hit another question
+          let isNextQuestion = false;
+          for (const pattern of questionPatterns) {
+            if (pattern.test(nextLine)) {
+              isNextQuestion = true;
+              break;
+            }
+          }
+          if (isNextQuestion) break;
+          
+          // Check for marks in this line
+          for (const pattern of marksPatterns) {
+            const nextMarksMatch = nextLine.match(pattern);
+            if (nextMarksMatch) {
+              currentMarks = parseInt(nextMarksMatch[1]);
+              marksFound = true;
+              break;
+            }
+          }
+          if (marksFound) break;
+        }
+      }
+      
+      // Default to 1 mark if no marks found
+      if (!marksFound) {
+        currentMarks = 1;
+        console.log(`⚠️ No marks found for question ${questionNumber}, defaulting to 1 mark`);
+      }
+      
     } else if (currentQuestion) {
-      // Continue building current question
-      currentQuestion += ' ' + line;
+      // Continue building current question (handle multi-line questions)
+      // But avoid adding lines that look like options or other formatting
+      if (!line.match(/^[a-d][\.\)]/i) && // Skip option lines like "a) option"
+          !line.match(/^[ivx]+[\.\)]/i) && // Skip roman numeral options
+          !line.match(/^\s*$/)) {          // Skip empty lines
+        currentQuestion += ' ' + line;
+      }
     }
   }
   
   // Add last question
-  if (currentQuestion) {
-    questions.push({ question: currentQuestion, marks: currentMarks });
+  if (currentQuestion && currentQuestion.trim().length > 0) {
+    questions.push({ 
+      question: currentQuestion.trim(), 
+      marks: currentMarks || 1 
+    });
+    console.log(`✅ Found final question ${questions.length}: "${currentQuestion.substring(0, 50)}..." (${currentMarks || 1} marks)`);
+  }
+  
+  console.log(`🎯 Total questions parsed: ${questions.length}`);
+  
+  // If no questions found with numbered patterns, try to extract any text blocks as potential questions
+  if (questions.length === 0) {
+    console.log('🔍 No numbered questions found, trying to extract text blocks...');
+    
+    // Group lines into potential questions based on paragraph breaks
+    const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim().length > 10);
+    
+    paragraphs.forEach((paragraph, index) => {
+      const cleanText = paragraph.trim().replace(/\s+/g, ' ');
+      if (cleanText.length > 10) {
+        // Look for marks in the paragraph
+        let marks = 1;
+        const marksMatch = cleanText.match(/\[(\d+)\s*marks?\]|\((\d+)\s*marks?\)|(\d+)\s*marks?/i);
+        if (marksMatch) {
+          marks = parseInt(marksMatch[1] || marksMatch[2] || marksMatch[3]);
+        }
+        
+        questions.push({
+          question: cleanText,
+          marks: marks
+        });
+        console.log(`📄 Extracted text block ${index + 1}: "${cleanText.substring(0, 50)}..." (${marks} marks)`);
+      }
+    });
+  }
+  
+  if (questions.length === 0) {
+    console.error('❌ No questions could be parsed from the PDF content');
+    console.log('Raw text sample:', text.substring(0, 1000));
   }
   
   return questions;
