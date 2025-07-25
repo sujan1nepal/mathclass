@@ -7,6 +7,8 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { useSupabaseUploads } from "@/hooks/useSupabaseUploads";
 import { useStudents } from "@/hooks/useStudents";
@@ -27,7 +29,10 @@ import {
   BookOpen,
   Plus,
   Users,
-  BarChart3
+  BarChart3,
+  GraduationCap,
+  Target,
+  TrendingUp
 } from "lucide-react";
 
 const Uploads = () => {
@@ -36,6 +41,7 @@ const Uploads = () => {
   const { getStudentTestScores, saveBulkScores } = useStudentScores();
   
   const [activeTab, setActiveTab] = useState<'lessons' | 'tests' | 'scoring'>('lessons');
+  const [scoringSubTab, setScoringSubTab] = useState<'pretest' | 'posttest'>('pretest');
   const [uploadType, setUploadType] = useState<'lesson' | 'pretest' | 'posttest'>('lesson');
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -118,16 +124,29 @@ const Uploads = () => {
     }
   };
 
+  const getFilteredTests = (type: 'pretest' | 'posttest') => {
+    return tests.filter(test => test.type === type);
+  };
+
+  const getTestStats = (type: 'pretest' | 'posttest') => {
+    const filteredTests = getFilteredTests(type);
+    return {
+      total: filteredTests.length,
+      totalMarks: filteredTests.reduce((sum, test) => sum + (test.total_marks || 0), 0),
+      avgMarks: filteredTests.length > 0 ? Math.round(filteredTests.reduce((sum, test) => sum + (test.total_marks || 0), 0) / filteredTests.length) : 0
+    };
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Content Management</h1>
-          <p className="text-muted-foreground">Upload lessons, tests and manage student scoring</p>
+          <p className="text-muted-foreground">Upload lessons, tests and manage comprehensive student scoring</p>
         </div>
         <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-gradient-to-r from-primary to-secondary text-white">
+            <Button className="bg-gradient-to-r from-primary to-secondary text-white shadow-lg hover:shadow-xl transition-all">
               <Plus className="w-4 h-4 mr-2" />
               Upload Content
             </Button>
@@ -258,8 +277,11 @@ const Uploads = () => {
       {activeTab === 'lessons' && (
         <Card className="border-0 shadow-lg">
           <CardHeader>
-            <CardTitle>Uploaded Lessons</CardTitle>
-            <CardDescription>PDF lessons with extracted content</CardDescription>
+            <CardTitle className="flex items-center space-x-2">
+              <BookOpen className="w-5 h-5 text-primary" />
+              <span>Uploaded Lessons</span>
+            </CardTitle>
+            <CardDescription>PDF lessons with beautifully formatted content display</CardDescription>
           </CardHeader>
           <CardContent>
             {uploadsLoading ? (
@@ -267,7 +289,7 @@ const Uploads = () => {
                 <Loader2 className="w-6 h-6 animate-spin" />
               </div>
             ) : lessons.length > 0 ? (
-              <div className="space-y-4">
+              <div className="space-y-6">
                 {lessons.map((lesson) => (
                   <div key={lesson.id} className="relative">
                     <PDFViewer
@@ -281,21 +303,25 @@ const Uploads = () => {
                         variant="ghost"
                         size="sm"
                         onClick={() => deleteLesson(lesson.id)}
-                        className="text-destructive hover:text-destructive bg-white/80 hover:bg-white"
+                        className="text-destructive hover:text-destructive bg-white/80 hover:bg-white shadow-sm"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
-                    <div className="mt-2 text-sm text-muted-foreground">
+                    <div className="mt-2 text-sm text-muted-foreground flex justify-between items-center">
                       <span>{new Date(lesson.created_at).toLocaleDateString()}</span>
+                      <Badge variant="outline" className="text-xs">
+                        {lesson.grade}
+                      </Badge>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8">
-                <BookOpen className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">No lessons uploaded yet.</p>
+              <div className="text-center py-12">
+                <BookOpen className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium mb-2">No lessons uploaded yet</h3>
+                <p className="text-muted-foreground">Upload your first lesson to get started!</p>
               </div>
             )}
           </CardContent>
@@ -305,8 +331,11 @@ const Uploads = () => {
       {activeTab === 'tests' && (
         <Card className="border-0 shadow-lg">
           <CardHeader>
-            <CardTitle>Uploaded Tests</CardTitle>
-            <CardDescription>Pre-tests and post-tests with auto-parsed questions</CardDescription>
+            <CardTitle className="flex items-center space-x-2">
+              <FileText className="w-5 h-5 text-primary" />
+              <span>Uploaded Tests</span>
+            </CardTitle>
+            <CardDescription>Pre-tests and post-tests with auto-parsed questions and scoring capabilities</CardDescription>
           </CardHeader>
           <CardContent>
             {uploadsLoading ? (
@@ -314,7 +343,40 @@ const Uploads = () => {
                 <Loader2 className="w-6 h-6 animate-spin" />
               </div>
             ) : tests.length > 0 ? (
-              <div className="space-y-4">
+              <div className="space-y-6">
+                {/* Test Statistics */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                  <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm font-medium flex items-center space-x-2">
+                        <Target className="w-4 h-4 text-blue-600" />
+                        <span>Pre-tests</span>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-blue-600">{getTestStats('pretest').total}</div>
+                      <p className="text-xs text-blue-600/70 mt-1">
+                        Avg: {getTestStats('pretest').avgMarks} marks
+                      </p>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm font-medium flex items-center space-x-2">
+                        <TrendingUp className="w-4 h-4 text-green-600" />
+                        <span>Post-tests</span>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-green-600">{getTestStats('posttest').total}</div>
+                      <p className="text-xs text-green-600/70 mt-1">
+                        Avg: {getTestStats('posttest').avgMarks} marks
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
+
                 {tests.map((test) => (
                   <div key={test.id} className="relative">
                     <PDFViewer
@@ -331,10 +393,11 @@ const Uploads = () => {
                         size="sm"
                         onClick={() => {
                           setSelectedTest(test.id);
+                          setScoringSubTab(test.type as 'pretest' | 'posttest');
                           setActiveTab('scoring');
                           loadTestScoring(test.id);
                         }}
-                        className="bg-white/80 hover:bg-white"
+                        className="bg-white/80 hover:bg-white shadow-sm"
                       >
                         <Users className="w-4 h-4 mr-2" />
                         Score Students
@@ -343,21 +406,30 @@ const Uploads = () => {
                         variant="ghost"
                         size="sm"
                         onClick={() => deleteTest(test.id)}
-                        className="text-destructive hover:text-destructive bg-white/80 hover:bg-white"
+                        className="text-destructive hover:text-destructive bg-white/80 hover:bg-white shadow-sm"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
-                    <div className="mt-2 text-sm text-muted-foreground">
+                    <div className="mt-2 text-sm text-muted-foreground flex justify-between items-center">
                       <span>{new Date(test.created_at).toLocaleDateString()}</span>
+                      <div className="flex items-center space-x-2">
+                        <Badge variant={test.type === 'pretest' ? 'default' : 'secondary'} className="text-xs">
+                          {test.type}
+                        </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          {test.grade}
+                        </Badge>
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8">
-                <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">No tests uploaded yet.</p>
+              <div className="text-center py-12">
+                <FileText className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium mb-2">No tests uploaded yet</h3>
+                <p className="text-muted-foreground">Upload pre-tests and post-tests to start scoring!</p>
               </div>
             )}
           </CardContent>
@@ -368,15 +440,24 @@ const Uploads = () => {
         <div className="space-y-6">
           <Card className="border-0 shadow-lg">
             <CardHeader>
-              <CardTitle>Student Test Scoring</CardTitle>
-              <CardDescription>Enter marks for each student per question</CardDescription>
+              <CardTitle className="flex items-center space-x-2">
+                <GraduationCap className="w-5 h-5 text-primary" />
+                <span>Student Test Scoring</span>
+              </CardTitle>
+              <CardDescription>
+                Comprehensive scoring system for individual questions with progress tracking
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div>
-                  <Label>Select Test</Label>
+                  <Label>Select Test to Score</Label>
                   <Select value={selectedTest} onValueChange={(value) => {
                     setSelectedTest(value);
+                    const test = tests.find(t => t.id === value);
+                    if (test) {
+                      setScoringSubTab(test.type as 'pretest' | 'posttest');
+                    }
                     loadTestScoring(value);
                   }}>
                     <SelectTrigger>
@@ -385,7 +466,12 @@ const Uploads = () => {
                     <SelectContent>
                       {tests.map(test => (
                         <SelectItem key={test.id} value={test.id}>
-                          {test.title} ({test.type}) - {test.grade}
+                          <div className="flex items-center space-x-2">
+                            <Badge variant={test.type === 'pretest' ? 'default' : 'secondary'} className="text-xs">
+                              {test.type}
+                            </Badge>
+                            <span>{test.title} - {test.grade}</span>
+                          </div>
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -395,62 +481,155 @@ const Uploads = () => {
             </CardContent>
           </Card>
 
-          {selectedTest && testQuestions.length > 0 && (
-            <>
-              <Card className="border-0 shadow-lg">
-                <CardHeader>
-                  <CardTitle>Test Questions</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <QuestionEditor 
-                    questions={testQuestions} 
-                    onUpdate={() => {}} 
-                    disabled={true}
-                  />
-                </CardContent>
-              </Card>
+          {selectedTest && (
+            <Tabs value={scoringSubTab} onValueChange={(value) => setScoringSubTab(value as 'pretest' | 'posttest')} className="space-y-6">
+              <TabsList className="grid w-full grid-cols-2 lg:w-96">
+                <TabsTrigger value="pretest" className="flex items-center space-x-2">
+                  <Target className="w-4 h-4" />
+                  <span>Pre-test Scoring</span>
+                </TabsTrigger>
+                <TabsTrigger value="posttest" className="flex items-center space-x-2">
+                  <TrendingUp className="w-4 h-4" />
+                  <span>Post-test Scoring</span>
+                </TabsTrigger>
+              </TabsList>
 
-              <Card className="border-0 shadow-lg">
-                <CardHeader>
-                  <CardTitle>Student Scores</CardTitle>
-                  <CardDescription>Enter marks for each student</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {scoringLoading ? (
-                    <div className="flex justify-center py-8">
-                      <Loader2 className="w-6 h-6 animate-spin" />
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {students
-                        .filter(student => {
-                          const selectedTestData = tests.find(t => t.id === selectedTest);
-                          return student.grade === selectedTestData?.grade;
-                        })
-                        .map(student => {
-                          const existingScores = studentTestScores.find(s => s.student_id === student.id);
-                          return (
-                            <StudentScoreCard
-                              key={student.id}
-                              student={student}
-                              questions={testQuestions}
-                              existingScores={existingScores}
-                              onSave={handleSaveStudentScores}
-                            />
-                          );
-                        })}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </>
+              <TabsContent value="pretest" className="space-y-6">
+                {testQuestions.length > 0 && (
+                  <>
+                    <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+                      <CardHeader>
+                        <CardTitle className="flex items-center space-x-2 text-blue-700">
+                          <Target className="w-5 h-5" />
+                          <span>Pre-test Questions</span>
+                        </CardTitle>
+                        <CardDescription className="text-blue-600">
+                          Questions for initial assessment before lesson delivery
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <QuestionEditor 
+                          questions={testQuestions} 
+                          onUpdate={() => {}} 
+                          disabled={true}
+                        />
+                      </CardContent>
+                    </Card>
+
+                    <Card className="border-0 shadow-lg">
+                      <CardHeader>
+                        <CardTitle className="flex items-center space-x-2">
+                          <Users className="w-5 h-5 text-blue-600" />
+                          <span>Student Pre-test Scores</span>
+                        </CardTitle>
+                        <CardDescription>
+                          Enter marks for each student's pre-test performance
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        {scoringLoading ? (
+                          <div className="flex justify-center py-8">
+                            <Loader2 className="w-6 h-6 animate-spin" />
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {students
+                              .filter(student => {
+                                const selectedTestData = tests.find(t => t.id === selectedTest);
+                                return student.grade === selectedTestData?.grade;
+                              })
+                              .map(student => {
+                                const existingScores = studentTestScores.find(s => s.student_id === student.id);
+                                return (
+                                  <StudentScoreCard
+                                    key={student.id}
+                                    student={student}
+                                    questions={testQuestions}
+                                    existingScores={existingScores}
+                                    onSave={handleSaveStudentScores}
+                                  />
+                                );
+                              })}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </>
+                )}
+              </TabsContent>
+
+              <TabsContent value="posttest" className="space-y-6">
+                {testQuestions.length > 0 && (
+                  <>
+                    <Card className="border-0 shadow-lg bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+                      <CardHeader>
+                        <CardTitle className="flex items-center space-x-2 text-green-700">
+                          <TrendingUp className="w-5 h-5" />
+                          <span>Post-test Questions</span>
+                        </CardTitle>
+                        <CardDescription className="text-green-600">
+                          Questions for assessment after lesson completion
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <QuestionEditor 
+                          questions={testQuestions} 
+                          onUpdate={() => {}} 
+                          disabled={true}
+                        />
+                      </CardContent>
+                    </Card>
+
+                    <Card className="border-0 shadow-lg">
+                      <CardHeader>
+                        <CardTitle className="flex items-center space-x-2">
+                          <Users className="w-5 h-5 text-green-600" />
+                          <span>Student Post-test Scores</span>
+                        </CardTitle>
+                        <CardDescription>
+                          Enter marks for each student's post-test performance
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        {scoringLoading ? (
+                          <div className="flex justify-center py-8">
+                            <Loader2 className="w-6 h-6 animate-spin" />
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {students
+                              .filter(student => {
+                                const selectedTestData = tests.find(t => t.id === selectedTest);
+                                return student.grade === selectedTestData?.grade;
+                              })
+                              .map(student => {
+                                const existingScores = studentTestScores.find(s => s.student_id === student.id);
+                                return (
+                                  <StudentScoreCard
+                                    key={student.id}
+                                    student={student}
+                                    questions={testQuestions}
+                                    existingScores={existingScores}
+                                    onSave={handleSaveStudentScores}
+                                  />
+                                );
+                              })}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </>
+                )}
+              </TabsContent>
+            </Tabs>
           )}
 
           {selectedTest && testQuestions.length === 0 && !scoringLoading && (
             <Card className="border-0 shadow-lg">
-              <CardContent className="text-center py-8">
-                <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">No questions found for this test.</p>
+              <CardContent className="text-center py-12">
+                <FileText className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium mb-2">No questions found</h3>
+                <p className="text-muted-foreground">This test doesn't have any parsed questions available for scoring.</p>
               </CardContent>
             </Card>
           )}

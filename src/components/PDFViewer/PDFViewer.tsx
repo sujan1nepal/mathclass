@@ -44,19 +44,138 @@ export const PDFViewer = ({
     }
   };
 
+  const formatContent = (text: string) => {
+    if (!text) return [];
+    
+    // Split by lines and process each line
+    const lines = text.split('\n');
+    const formatted = [];
+    let currentSection = '';
+    
+    for (const line of lines) {
+      const trimmedLine = line.trim();
+      
+      // Skip empty lines
+      if (!trimmedLine) {
+        if (currentSection) {
+          formatted.push({ type: 'paragraph', content: currentSection });
+          currentSection = '';
+        }
+        continue;
+      }
+      
+      // Check for headers (lines with specific patterns)
+      if (trimmedLine.match(/^[A-Z][A-Z\s]+[A-Z]$/) && trimmedLine.length < 50) {
+        if (currentSection) {
+          formatted.push({ type: 'paragraph', content: currentSection });
+          currentSection = '';
+        }
+        formatted.push({ type: 'header', content: trimmedLine });
+      }
+      // Check for numbered questions
+      else if (trimmedLine.match(/^\d+[\.\)]/)) {
+        if (currentSection) {
+          formatted.push({ type: 'paragraph', content: currentSection });
+          currentSection = '';
+        }
+        formatted.push({ type: 'question', content: trimmedLine });
+      }
+      // Check for lettered options
+      else if (trimmedLine.match(/^[a-d][\.\)]/i)) {
+        if (currentSection) {
+          formatted.push({ type: 'paragraph', content: currentSection });
+          currentSection = '';
+        }
+        formatted.push({ type: 'option', content: trimmedLine });
+      }
+      // Check for bullets or dashes
+      else if (trimmedLine.match(/^[-•*]/)) {
+        if (currentSection) {
+          formatted.push({ type: 'paragraph', content: currentSection });
+          currentSection = '';
+        }
+        formatted.push({ type: 'bullet', content: trimmedLine });
+      }
+      // Regular content
+      else {
+        if (currentSection) {
+          currentSection += ' ' + trimmedLine;
+        } else {
+          currentSection = trimmedLine;
+        }
+      }
+    }
+    
+    // Add any remaining content
+    if (currentSection) {
+      formatted.push({ type: 'paragraph', content: currentSection });
+    }
+    
+    return formatted;
+  };
+
+  const renderFormattedContent = (formattedContent: Array<{ type: string; content: string }>) => {
+    return formattedContent.map((item, index) => {
+      switch (item.type) {
+        case 'header':
+          return (
+            <h3 key={index} className="text-lg font-bold text-primary mb-3 mt-6 first:mt-0 border-b border-border pb-2">
+              {item.content}
+            </h3>
+          );
+        case 'question':
+          return (
+            <div key={index} className="bg-primary/5 p-4 rounded-lg mb-4 border-l-4 border-primary">
+              <p className="font-semibold text-foreground">{item.content}</p>
+            </div>
+          );
+        case 'option':
+          return (
+            <div key={index} className="ml-6 mb-2 flex items-start">
+              <span className="inline-block w-8 h-8 bg-secondary/20 rounded-full flex items-center justify-center text-sm font-medium mr-3 mt-0.5 flex-shrink-0">
+                {item.content.charAt(0).toUpperCase()}
+              </span>
+              <p className="text-foreground leading-relaxed">{item.content.substring(2).trim()}</p>
+            </div>
+          );
+        case 'bullet':
+          return (
+            <div key={index} className="ml-4 mb-2 flex items-start">
+              <span className="text-primary mr-3 mt-1">•</span>
+              <p className="text-foreground leading-relaxed">{item.content.substring(1).trim()}</p>
+            </div>
+          );
+        case 'paragraph':
+          return (
+            <p key={index} className="text-foreground leading-relaxed mb-4 text-justify">
+              {item.content}
+            </p>
+          );
+        default:
+          return (
+            <p key={index} className="text-foreground leading-relaxed mb-4">
+              {item.content}
+            </p>
+          );
+      }
+    });
+  };
+
   return (
-    <Card className={`border border-border transition-all duration-200 ${isExpanded ? 'col-span-full' : ''}`}>
-      <CardHeader className="pb-3">
+    <Card className={`border border-border transition-all duration-200 shadow-md hover:shadow-lg ${isExpanded ? 'col-span-full' : ''}`}>
+      <CardHeader className="pb-3 bg-gradient-to-r from-primary/5 to-secondary/5">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <FileText className="w-6 h-6 text-primary" />
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <FileText className="w-6 h-6 text-primary" />
+            </div>
             <div>
-              <CardTitle className="text-lg">{title}</CardTitle>
+              <CardTitle className="text-lg font-semibold">{title}</CardTitle>
               <div className="flex items-center space-x-2 mt-1">
-                {grade && <Badge variant="outline">{grade}</Badge>}
-                {type && <Badge variant={type === 'pretest' ? 'default' : 'secondary'}>{type}</Badge>}
-                {totalMarks && <Badge variant="outline">{totalMarks} marks</Badge>}
-                {filename && <Badge variant="secondary">PDF</Badge>}
+                {grade && <Badge variant="outline" className="text-xs">{grade}</Badge>}
+                {type && <Badge variant={type === 'pretest' ? 'default' : 'secondary'} className="text-xs">{type}</Badge>}
+                {totalMarks && <Badge variant="outline" className="text-xs">{totalMarks} marks</Badge>}
+                {filename && <Badge variant="secondary" className="text-xs">PDF</Badge>}
               </div>
             </div>
           </div>
@@ -65,13 +184,16 @@ export const PDFViewer = ({
               variant="outline"
               size="sm"
               onClick={() => setShowContent(!showContent)}
+              className="hover:bg-primary/10"
             >
               {showContent ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              <span className="ml-2 hidden sm:inline">{showContent ? 'Hide' : 'Show'}</span>
             </Button>
             <Button
               variant="outline"
               size="sm"
               onClick={() => setIsExpanded(!isExpanded)}
+              className="hover:bg-secondary/10"
             >
               {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </Button>
@@ -80,6 +202,7 @@ export const PDFViewer = ({
                 variant="outline"
                 size="sm"
                 onClick={handleDownload}
+                className="hover:bg-accent/10"
               >
                 <Download className="w-4 h-4" />
               </Button>
@@ -89,20 +212,21 @@ export const PDFViewer = ({
       </CardHeader>
       
       {showContent && content && (
-        <CardContent>
-          <ScrollArea className={`w-full ${isExpanded ? 'h-96' : 'h-48'} border rounded-md p-4`}>
-            <div className="whitespace-pre-wrap text-sm font-mono">
-              {content}
+        <CardContent className="p-6">
+          <ScrollArea className={`w-full ${isExpanded ? 'h-[600px]' : 'h-96'} border rounded-lg p-6 bg-background`}>
+            <div className="prose prose-sm max-w-none">
+              {renderFormattedContent(formatContent(content))}
             </div>
           </ScrollArea>
         </CardContent>
       )}
       
       {showContent && !content && (
-        <CardContent>
-          <div className="text-center py-8 text-muted-foreground">
-            <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <p>No content available</p>
+        <CardContent className="p-6">
+          <div className="text-center py-12 text-muted-foreground">
+            <FileText className="w-16 h-16 mx-auto mb-4 opacity-50" />
+            <p className="text-lg">No content available</p>
+            <p className="text-sm">The PDF content could not be extracted or is empty</p>
           </div>
         </CardContent>
       )}
