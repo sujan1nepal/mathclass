@@ -17,7 +17,7 @@ import { QuestionEditor } from "@/components/TestQuestions/QuestionEditor";
 import { StudentScoreCard } from "@/components/TestScoring/StudentScoreCard";
 import { PDFViewer } from "@/components/PDFViewer/PDFViewer";
 import { ManualQuestionEditor } from "@/components/TestQuestions/ManualQuestionEditor";
-import { generateTestTemplate, generateLessonTemplate } from "@/utils/docxTemplate";
+import { generateTestTemplate, generateLessonTemplate, generateFormatGuide } from "@/utils/docxTemplate";
 import {
   Upload,
   FileText,
@@ -34,7 +34,8 @@ import {
   BarChart3,
   GraduationCap,
   Target,
-  TrendingUp
+  TrendingUp,
+  HelpCircle
 } from "lucide-react";
 
 const Uploads = () => {
@@ -192,6 +193,16 @@ const Uploads = () => {
     }
   };
 
+  const handleDownloadFormatGuide = async () => {
+    try {
+      await generateFormatGuide();
+      toast.success('Format guide downloaded! This shows you exactly how to format questions.');
+    } catch (error) {
+      console.error('Error downloading format guide:', error);
+      toast.error('Failed to download format guide');
+    }
+  };
+
   const getFilteredTests = (type: 'pretest' | 'posttest') => {
     return tests.filter(test => test.type === type);
   };
@@ -212,126 +223,168 @@ const Uploads = () => {
           <h1 className="text-3xl font-bold text-foreground">Content Management</h1>
           <p className="text-muted-foreground">Upload lessons, tests and manage comprehensive student scoring</p>
         </div>
-        <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-gradient-to-r from-primary to-secondary text-white shadow-lg hover:shadow-xl transition-all">
-              <Plus className="w-4 h-4 mr-2" />
-              Upload Content
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle>Upload New Content</DialogTitle>
-              <DialogDescription>
-                Upload PDF lessons or tests with automatic text extraction and question parsing.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label>Content Type</Label>
-                <Select value={uploadType} onValueChange={(value: any) => setUploadType(value)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="lesson">Lesson Plan</SelectItem>
-                    <SelectItem value="pretest">Pre-test</SelectItem>
-                    <SelectItem value="posttest">Post-test</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div>
-                <Label>Title</Label>
-                <Input
-                  value={uploadForm.title}
-                  onChange={(e) => setUploadForm({ ...uploadForm, title: e.target.value })}
-                  placeholder="Enter title"
-                />
-              </div>
-              
-              <div>
-                <Label>Grade</Label>
-                <Select value={uploadForm.grade} onValueChange={(value) => setUploadForm({ ...uploadForm, grade: value })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select grade" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Grade 9">Grade 9</SelectItem>
-                    <SelectItem value="Grade 10">Grade 10</SelectItem>
-                    <SelectItem value="Grade 11">Grade 11</SelectItem>
-                    <SelectItem value="Grade 12">Grade 12</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              {uploadType !== 'lesson' && (
+        <div className="flex items-center space-x-3">
+          <Button
+            variant="outline"
+            onClick={handleDownloadFormatGuide}
+            className="border-secondary text-secondary hover:bg-secondary/10"
+          >
+            <HelpCircle className="w-4 h-4 mr-2" />
+            Format Guide
+          </Button>
+          <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-gradient-to-r from-primary to-secondary text-white shadow-lg hover:shadow-xl transition-all">
+                <Plus className="w-4 h-4 mr-2" />
+                Upload Content
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center space-x-2">
+                  <Upload className="w-5 h-5 text-primary" />
+                  <span>Upload New Content</span>
+                </DialogTitle>
+                <DialogDescription>
+                  Upload PDF lessons or tests with automatic text extraction and question parsing.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
                 <div>
-                  <Label>Associated Lesson (Optional)</Label>
-                  <Select value={uploadForm.lessonId} onValueChange={(value) => setUploadForm({ ...uploadForm, lessonId: value })}>
+                  <Label>Content Type</Label>
+                  <Select value={uploadType} onValueChange={(value: any) => setUploadType(value)}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select lesson" />
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {lessons.filter(l => l.grade === uploadForm.grade).map(lesson => (
-                        <SelectItem key={lesson.id} value={lesson.id}>
-                          {lesson.title}
-                        </SelectItem>
-                      ))}
+                      <SelectItem value="lesson">Lesson Plan</SelectItem>
+                      <SelectItem value="pretest">Pre-test</SelectItem>
+                      <SelectItem value="posttest">Post-test</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-              )}
-              
-              <div>
-                <Label>PDF File</Label>
-                <Input
-                  type="file"
-                  accept=".pdf"
-                  onChange={handleFileInput}
-                  disabled={uploading}
-                />
-              </div>
+                
+                <div>
+                  <Label>Title</Label>
+                  <Input
+                    value={uploadForm.title}
+                    onChange={(e) => setUploadForm({ ...uploadForm, title: e.target.value })}
+                    placeholder="Enter title"
+                  />
+                </div>
+                
+                <div>
+                  <Label>Grade</Label>
+                  <Select value={uploadForm.grade} onValueChange={(value) => setUploadForm({ ...uploadForm, grade: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select grade" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Grade 9">Grade 9</SelectItem>
+                      <SelectItem value="Grade 10">Grade 10</SelectItem>
+                      <SelectItem value="Grade 11">Grade 11</SelectItem>
+                      <SelectItem value="Grade 12">Grade 12</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {uploadType !== 'lesson' && (
+                  <div>
+                    <Label>Associated Lesson (Optional)</Label>
+                    <Select value={uploadForm.lessonId} onValueChange={(value) => setUploadForm({ ...uploadForm, lessonId: value })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select lesson" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {lessons.filter(l => l.grade === uploadForm.grade).map(lesson => (
+                          <SelectItem key={lesson.id} value={lesson.id}>
+                            {lesson.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                
+                <div>
+                  <Label>PDF File</Label>
+                  <Input
+                    type="file"
+                    accept=".pdf"
+                    onChange={handleFileInput}
+                    disabled={uploading}
+                  />
+                </div>
 
-              {/* Template Download Section */}
-              <div className="space-y-3 border-t border-border pt-4">
-                <div className="flex items-center space-x-2">
-                  <Download className="w-4 h-4 text-primary" />
-                  <Label className="text-sm font-medium text-primary">Need Help Formatting?</Label>
+                {/* Enhanced Template Download Section */}
+                <div className="space-y-3 border-t border-border pt-4">
+                  <div className="flex items-center space-x-2">
+                    <Download className="w-4 h-4 text-primary" />
+                    <Label className="text-sm font-medium text-primary">Need Help With Formatting?</Label>
+                  </div>
+                  
+                  {uploadType !== 'lesson' && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                      <h4 className="font-semibold text-amber-800 mb-2">⚠️ Critical for Test Uploads</h4>
+                      <p className="text-sm text-amber-700 mb-3">
+                        For questions to be parsed correctly, follow these EXACT rules:
+                      </p>
+                      <ul className="text-xs text-amber-600 space-y-1 ml-4">
+                        <li>• Start each question with "1." "2." "3." etc. (number + period)</li>
+                        <li>• Include marks like [3 marks] or (2 marks)</li>
+                        <li>• Leave blank lines between questions</li>
+                        <li>• Don't use "Question 1:" or "Q1." or "1)" formats</li>
+                      </ul>
+                    </div>
+                  )}
+                  
+                  <div className="grid grid-cols-1 gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleDownloadTemplate}
+                      className="w-full border-primary text-primary hover:bg-primary/10"
+                      disabled={!uploadForm.title || !uploadForm.grade}
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Download {uploadType === 'lesson' ? 'Lesson' : 'Test'} Template (.docx)
+                    </Button>
+                    
+                    {uploadType !== 'lesson' && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleDownloadFormatGuide}
+                        className="w-full border-secondary text-secondary hover:bg-secondary/10"
+                      >
+                        <HelpCircle className="w-4 h-4 mr-2" />
+                        Download Formatting Guide (.docx)
+                      </Button>
+                    )}
+                  </div>
+                  
+                  <div className="text-xs text-muted-foreground bg-blue-50 p-3 rounded-lg">
+                    <p className="font-medium text-blue-700 mb-1">📝 Quick Start Guide:</p>
+                    <ol className="list-decimal list-inside space-y-1 text-blue-600">
+                      <li>Enter title and grade above</li>
+                      <li>Download the template for your content type</li>
+                      <li>Edit the template with your content (follow the format exactly for tests)</li>
+                      <li>Save as PDF and upload here</li>
+                      <li>{uploadType === 'lesson' ? 'Lesson content will be viewable immediately' : 'Questions will be automatically parsed for scoring'}</li>
+                    </ol>
+                  </div>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  Download a formatted template with proper question structure and guidelines.
-                </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleDownloadTemplate}
-                  className="w-full border-primary text-primary hover:bg-primary/10"
-                  disabled={!uploadForm.title || !uploadForm.grade}
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Download {uploadType === 'lesson' ? 'Lesson' : 'Test'} Template (.docx)
-                </Button>
-                <div className="text-xs text-muted-foreground bg-blue-50 p-3 rounded-lg">
-                  <p className="font-medium text-blue-700 mb-1">📝 How to use:</p>
-                  <ol className="list-decimal list-inside space-y-1 text-blue-600">
-                    <li>Download the template above</li>
-                    <li>Edit it with your content following the format</li>
-                    <li>Save as PDF and upload here</li>
-                    <li>Questions will be automatically parsed!</li>
-                  </ol>
-                </div>
+                
+                {uploading && (
+                  <div className="space-y-2">
+                    <Progress value={uploadProgress} />
+                    <p className="text-sm text-muted-foreground">Processing PDF and extracting content...</p>
+                  </div>
+                )}
               </div>
-              
-              {uploading && (
-                <div className="space-y-2">
-                  <Progress value={uploadProgress} />
-                  <p className="text-sm text-muted-foreground">Processing PDF and extracting content...</p>
-                </div>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Navigation Tabs */}
@@ -379,7 +432,7 @@ const Uploads = () => {
               <BookOpen className="w-5 h-5 text-primary" />
               <span>Uploaded Lessons</span>
             </CardTitle>
-            <CardDescription>PDF lessons with beautifully formatted content display</CardDescription>
+            <CardDescription>PDF lessons with beautifully formatted content display (content shown by default)</CardDescription>
           </CardHeader>
           <CardContent>
             {uploadsLoading ? (
