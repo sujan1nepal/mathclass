@@ -39,7 +39,7 @@ import {
 } from "lucide-react";
 
 const Uploads = () => {
-  const { lessons, tests, testQuestions, loading: uploadsLoading, uploadLesson, uploadTest, deleteLesson, deleteTest, fetchTestQuestions, reparseTestQuestions, saveManualQuestions } = useSupabaseUploads();
+  const { lessons, tests, testQuestions, loading: uploadsLoading, uploadLesson, uploadTest, deleteLesson, deleteTest, fetchTestQuestions, reparseTestQuestions, saveManualQuestions, uploadPastedContent } = useSupabaseUploads();
   const { students } = useStudents();
   const { getStudentTestScores, saveBulkScores } = useStudentScores();
   
@@ -54,6 +54,8 @@ const Uploads = () => {
   const [studentTestScores, setStudentTestScores] = useState<any[]>([]);
   const [scoringLoading, setScoringLoading] = useState(false);
   const [reparsingQuestions, setReparsingQuestions] = useState(false);
+  const [pastedContent, setPastedContent] = useState('');
+  const [isPasteDialogOpen, setIsPasteDialogOpen] = useState(false);
   
   const [uploadForm, setUploadForm] = useState({
     title: '',
@@ -232,6 +234,40 @@ const Uploads = () => {
             <HelpCircle className="w-4 h-4 mr-2" />
             Format Guide
           </Button>
+          <Dialog open={isPasteDialogOpen} onOpenChange={setIsPasteDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Plus className="w-4 h-4 mr-2" />
+                Paste from Word
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Paste from Word</DialogTitle>
+                <DialogDescription>
+                  Paste your content from Word here. We'll do our best to format it correctly.
+                </DialogDescription>
+              </DialogHeader>
+              <textarea
+                className="w-full h-64 p-2 border rounded-md"
+                value={pastedContent}
+                onChange={(e) => setPastedContent(e.target.value)}
+              />
+              <Button onClick={async () => {
+                if (!pastedContent.trim()) {
+                  toast.error('Please paste some content before submitting');
+                  return;
+                }
+                if (!uploadForm.title || !uploadForm.grade) {
+                  toast.error('Please fill in title and grade before submitting');
+                  return;
+                }
+                await uploadPastedContent(pastedContent, uploadType, uploadForm.title, uploadForm.grade, uploadForm.lessonId);
+                setIsPasteDialogOpen(false);
+                setPastedContent('');
+              }}>Submit</Button>
+            </DialogContent>
+          </Dialog>
           <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
             <DialogTrigger asChild>
               <Button className="bg-gradient-to-r from-primary to-secondary text-white shadow-lg hover:shadow-xl transition-all">

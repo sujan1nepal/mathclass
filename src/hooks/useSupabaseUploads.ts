@@ -445,6 +445,82 @@ export const useSupabaseUploads = () => {
     }
   };
 
+  const uploadPastedContent = async (content: string, type: 'lesson' | 'pretest' | 'posttest', title: string, grade: string, lessonId?: string) => {
+    try {
+      setLoading(true);
+      if (type === 'lesson') {
+        const { data, error } = await supabase
+          .from('lessons')
+          .insert([{
+            title,
+            grade,
+            pdf_content: content,
+            pdf_filename: 'pasted_content.txt'
+          }])
+          .select()
+          .single();
+        if (error) {
+          toast.error('Failed to save pasted lesson');
+          console.error('Error saving pasted lesson:', error);
+          return null;
+        }
+        await fetchLessons();
+        toast.success('Lesson saved successfully from pasted content');
+        return data;
+      } else {
+        const questions = parseTestQuestions(content);
+        const totalMarks = questions.reduce((sum, q) => sum + q.marks, 0);
+        const { data: testData, error: testError } = await supabase
+          .from('tests')
+          .insert([{
+            title,
+            type,
+            grade,
+            lesson_id: lessonId || null,
+            pdf_content: content,
+            pdf_filename: 'pasted_content.txt',
+            total_marks: totalMarks
+          }])
+          .select()
+          .single();
+
+        if (testError) {
+          toast.error('Failed to save pasted test');
+          console.error('Error saving pasted test:', testError);
+          return null;
+        }
+
+        if (questions.length > 0) {
+          const questionsData = questions.map((q, index) => ({
+            test_id: testData.id,
+            question_text: q.question,
+            total_marks: q.marks,
+            question_order: index + 1
+          }));
+          const { error: questionsError } = await supabase
+            .from('test_questions')
+            .insert(questionsData);
+          if (questionsError) {
+            console.error('Error inserting questions from pasted content:', questionsError);
+            toast.error('Test saved but failed to save questions. You can add them manually.');
+          } else {
+            console.log('✅ Questions from pasted content saved successfully');
+          }
+        }
+        await fetchTests();
+        await fetchTestQuestions(testData.id);
+        toast.success(`${type} saved successfully from pasted content with ${questions.length} questions`);
+        return testData;
+      }
+    } catch (error) {
+      toast.error('Failed to process pasted content');
+      console.error('Error in uploadPastedContent:', error);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     const fetchAll = async () => {
       setLoading(true);
@@ -467,6 +543,7 @@ export const useSupabaseUploads = () => {
     fetchTestQuestions,
     refetch: () => Promise.all([fetchLessons(), fetchTests(), fetchTestQuestions()]),
     reparseTestQuestions,
-    saveManualQuestions
+    saveManualQuestions,
+    uploadPastedContent,
   };
 };
