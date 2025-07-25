@@ -242,6 +242,83 @@ export const useSupabaseUploads = () => {
     }
   };
 
+  const reparseTestQuestions = async (testId: string) => {
+    try {
+      console.log('🔄 Re-parsing questions for test:', testId);
+      
+      // Get the test data
+      const { data: testData, error: testError } = await supabase
+        .from('tests')
+        .select('*')
+        .eq('id', testId)
+        .single();
+      
+      if (testError || !testData) {
+        console.error('Error fetching test:', testError);
+        toast.error('Failed to fetch test data');
+        return false;
+      }
+      
+      if (!testData.pdf_content) {
+        toast.error('No PDF content found for this test');
+        return false;
+      }
+      
+      // Delete existing questions
+      const { error: deleteError } = await supabase
+        .from('test_questions')
+        .delete()
+        .eq('test_id', testId);
+      
+      if (deleteError) {
+        console.error('Error deleting existing questions:', deleteError);
+      }
+      
+      // Re-parse questions
+      const questions = parseTestQuestions(testData.pdf_content);
+      const totalMarks = questions.reduce((sum, q) => sum + q.marks, 0);
+      
+      // Update test with new total marks
+      const { error: updateError } = await supabase
+        .from('tests')
+        .update({ total_marks: totalMarks })
+        .eq('id', testId);
+      
+      if (updateError) {
+        console.error('Error updating test marks:', updateError);
+      }
+      
+      // Insert new questions
+      if (questions.length > 0) {
+        const questionsData = questions.map((q, index) => ({
+          test_id: testId,
+          question_text: q.question,
+          total_marks: q.marks,
+          question_order: index + 1
+        }));
+        
+        const { error: questionsError } = await supabase
+          .from('test_questions')
+          .insert(questionsData);
+        
+        if (questionsError) {
+          console.error('Error inserting questions:', questionsError);
+          toast.error('Failed to save parsed questions');
+          return false;
+        }
+      }
+      
+      await fetchTests();
+      await fetchTestQuestions(testId);
+      toast.success(`Re-parsed ${questions.length} questions successfully`);
+      return true;
+    } catch (error) {
+      console.error('Error re-parsing questions:', error);
+      toast.error('Failed to re-parse questions');
+      return false;
+    }
+  };
+
   useEffect(() => {
     const fetchAll = async () => {
       setLoading(true);
@@ -262,6 +339,7 @@ export const useSupabaseUploads = () => {
     deleteLesson,
     deleteTest,
     fetchTestQuestions,
-    refetch: () => Promise.all([fetchLessons(), fetchTests(), fetchTestQuestions()])
+    refetch: () => Promise.all([fetchLessons(), fetchTests(), fetchTestQuestions()]),
+    reparseTestQuestions
   };
 };

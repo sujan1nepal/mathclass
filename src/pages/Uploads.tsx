@@ -36,7 +36,7 @@ import {
 } from "lucide-react";
 
 const Uploads = () => {
-  const { lessons, tests, testQuestions, loading: uploadsLoading, uploadLesson, uploadTest, deleteLesson, deleteTest, fetchTestQuestions } = useSupabaseUploads();
+  const { lessons, tests, testQuestions, loading: uploadsLoading, uploadLesson, uploadTest, deleteLesson, deleteTest, fetchTestQuestions, reparseTestQuestions } = useSupabaseUploads();
   const { students } = useStudents();
   const { getStudentTestScores, saveBulkScores } = useStudentScores();
   
@@ -50,6 +50,7 @@ const Uploads = () => {
   const [selectedTest, setSelectedTest] = useState<string>('');
   const [studentTestScores, setStudentTestScores] = useState<any[]>([]);
   const [scoringLoading, setScoringLoading] = useState(false);
+  const [reparsingQuestions, setReparsingQuestions] = useState(false);
   
   const [uploadForm, setUploadForm] = useState({
     title: '',
@@ -94,11 +95,24 @@ const Uploads = () => {
   const loadTestScoring = async (testId: string) => {
     setScoringLoading(true);
     try {
+      console.log('🔍 Loading test scoring for test ID:', testId);
+      
+      // Fetch test questions for the specific test
       await fetchTestQuestions(testId);
+      
+      // Fetch existing student scores
       const scores = await getStudentTestScores(testId);
       setStudentTestScores(scores);
+      
+      console.log('📊 Test questions loaded:', testQuestions.length);
+      console.log('📊 Student scores loaded:', scores.length);
+      
+      // Also log the selected test details
+      const selectedTestData = tests.find(t => t.id === testId);
+      console.log('📝 Selected test:', selectedTestData);
+      
     } catch (error) {
-      console.error('Error loading test scoring:', error);
+      console.error('❌ Error loading test scoring:', error);
       toast.error('Failed to load test scoring');
     } finally {
       setScoringLoading(false);
@@ -115,6 +129,23 @@ const Uploads = () => {
     const success = await saveBulkScores(scoreRecords);
     if (success && selectedTest) {
       await loadTestScoring(selectedTest);
+    }
+  };
+
+  const handleReparseQuestions = async () => {
+    if (!selectedTest) return;
+    
+    setReparsingQuestions(true);
+    try {
+      const success = await reparseTestQuestions(selectedTest);
+      if (success) {
+        // Reload the test scoring to show the new questions
+        await loadTestScoring(selectedTest);
+      }
+    } catch (error) {
+      console.error('Error re-parsing questions:', error);
+    } finally {
+      setReparsingQuestions(false);
     }
   };
 
@@ -493,6 +524,65 @@ const Uploads = () => {
                   <span>Post-test Scoring</span>
                 </TabsTrigger>
               </TabsList>
+
+              {/* Debug Information */}
+              {selectedTest && (
+                <Card className="border-orange-200 bg-orange-50">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm text-orange-700 flex items-center space-x-2">
+                      <FileText className="w-4 h-4" />
+                      <span>Debug Information</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="text-sm">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <p className="font-medium text-orange-700">Selected Test:</p>
+                        <p className="text-orange-600">{tests.find(t => t.id === selectedTest)?.title || 'Unknown'}</p>
+                      </div>
+                      <div>
+                        <p className="font-medium text-orange-700">Test Type:</p>
+                        <p className="text-orange-600">{tests.find(t => t.id === selectedTest)?.type || 'Unknown'}</p>
+                      </div>
+                      <div>
+                        <p className="font-medium text-orange-700">Questions Found:</p>
+                        <p className="text-orange-600">{testQuestions.length} questions</p>
+                      </div>
+                    </div>
+                    {testQuestions.length === 0 && (
+                      <div className="mt-3 p-3 bg-orange-100 rounded-lg">
+                        <p className="text-orange-700 font-medium">Troubleshooting Tips:</p>
+                        <ul className="text-orange-600 text-xs mt-1 space-y-1">
+                          <li>• Check browser console for question parsing logs</li>
+                          <li>• Ensure your PDF has numbered questions (1., 2., etc.)</li>
+                          <li>• Try re-uploading the test if questions weren't parsed</li>
+                          <li>• Questions should be clearly formatted with numbers</li>
+                        </ul>
+                      </div>
+                    )}
+                    <Separator className="my-3" />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleReparseQuestions}
+                      className="text-orange-600 hover:text-orange-700"
+                      disabled={reparsingQuestions}
+                    >
+                      {reparsingQuestions ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Re-parsing...
+                        </>
+                      ) : (
+                        <>
+                          <Cloud className="w-4 h-4 mr-2" />
+                          Re-parse Questions
+                        </>
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
 
               <TabsContent value="pretest" className="space-y-6">
                 {testQuestions.length > 0 && (
