@@ -248,6 +248,28 @@ const Uploads = () => {
                   Paste your content from Word here. We'll do our best to format it correctly.
                 </DialogDescription>
               </DialogHeader>
+              <div>
+                <Label>Title</Label>
+                <Input
+                  value={uploadForm.title}
+                  onChange={(e) => setUploadForm({ ...uploadForm, title: e.target.value })}
+                  placeholder="Enter title"
+                />
+              </div>
+              <div>
+                <Label>Grade</Label>
+                <Select value={uploadForm.grade} onValueChange={(value) => setUploadForm({ ...uploadForm, grade: value })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select grade" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Grade 9">Grade 9</SelectItem>
+                    <SelectItem value="Grade 10">Grade 10</SelectItem>
+                    <SelectItem value="Grade 11">Grade 11</SelectItem>
+                    <SelectItem value="Grade 12">Grade 12</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <textarea
                 className="w-full h-64 p-2 border rounded-md"
                 value={pastedContent}
