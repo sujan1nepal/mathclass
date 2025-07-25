@@ -386,6 +386,65 @@ export const useSupabaseUploads = () => {
     }
   };
 
+  const saveManualQuestions = async (testId: string, questions: Array<{ question_text: string; total_marks: number; question_order: number }>) => {
+    try {
+      console.log('💾 Saving manual questions for test:', testId);
+      
+      // Delete existing questions
+      const { error: deleteError } = await supabase
+        .from('test_questions')
+        .delete()
+        .eq('test_id', testId);
+      
+      if (deleteError) {
+        console.error('Error deleting existing questions:', deleteError);
+        toast.error('Failed to delete existing questions');
+        return false;
+      }
+      
+      // Calculate total marks
+      const totalMarks = questions.reduce((sum, q) => sum + q.total_marks, 0);
+      
+      // Update test with new total marks
+      const { error: updateError } = await supabase
+        .from('tests')
+        .update({ total_marks: totalMarks })
+        .eq('id', testId);
+      
+      if (updateError) {
+        console.error('Error updating test marks:', updateError);
+      }
+      
+      // Insert new questions
+      const questionsData = questions.map(q => ({
+        test_id: testId,
+        question_text: q.question_text,
+        total_marks: q.total_marks,
+        question_order: q.question_order
+      }));
+      
+      const { error: questionsError } = await supabase
+        .from('test_questions')
+        .insert(questionsData);
+      
+      if (questionsError) {
+        console.error('Error inserting questions:', questionsError);
+        toast.error('Failed to save questions');
+        return false;
+      }
+      
+      await fetchTests();
+      await fetchTestQuestions(testId);
+      
+      console.log(`✅ Saved ${questions.length} manual questions successfully`);
+      return true;
+    } catch (error) {
+      console.error('Error saving manual questions:', error);
+      toast.error('Failed to save questions');
+      return false;
+    }
+  };
+
   useEffect(() => {
     const fetchAll = async () => {
       setLoading(true);
@@ -407,6 +466,7 @@ export const useSupabaseUploads = () => {
     deleteTest,
     fetchTestQuestions,
     refetch: () => Promise.all([fetchLessons(), fetchTests(), fetchTestQuestions()]),
-    reparseTestQuestions
+    reparseTestQuestions,
+    saveManualQuestions
   };
 };
