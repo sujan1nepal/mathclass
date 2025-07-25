@@ -30,7 +30,8 @@ export const PDFViewer = ({
   totalMarks 
 }: PDFViewerProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [showContent, setShowContent] = useState(false);
+  // Show content by default for lessons, hidden by default for tests
+  const [showContent, setShowContent] = useState(!type || type === 'lesson');
 
   const handleDownload = () => {
     if (content) {
@@ -72,6 +73,14 @@ export const PDFViewer = ({
         }
         formatted.push({ type: 'header', content: trimmedLine });
       }
+      // Check for lesson plan sections (common headings)
+      else if (trimmedLine.match(/^(OBJECTIVES?|MATERIALS?|ACTIVITIES?|ASSESSMENT|INTRODUCTION|CONCLUSION|HOMEWORK|RESOURCES?):?$/i)) {
+        if (currentSection) {
+          formatted.push({ type: 'paragraph', content: currentSection });
+          currentSection = '';
+        }
+        formatted.push({ type: 'section-header', content: trimmedLine });
+      }
       // Check for numbered questions
       else if (trimmedLine.match(/^\d+[\.\)]/)) {
         if (currentSection) {
@@ -96,6 +105,14 @@ export const PDFViewer = ({
         }
         formatted.push({ type: 'bullet', content: trimmedLine });
       }
+      // Check for time indicators (for lesson plans)
+      else if (trimmedLine.match(/^\d+\s*(min|minutes?|hour?s?)\s*[-:]/i)) {
+        if (currentSection) {
+          formatted.push({ type: 'paragraph', content: currentSection });
+          currentSection = '';
+        }
+        formatted.push({ type: 'time-block', content: trimmedLine });
+      }
       // Regular content
       else {
         if (currentSection) {
@@ -119,7 +136,13 @@ export const PDFViewer = ({
       switch (item.type) {
         case 'header':
           return (
-            <h3 key={index} className="text-lg font-bold text-primary mb-3 mt-6 first:mt-0 border-b border-border pb-2">
+            <h2 key={index} className="text-xl font-bold text-primary mb-4 mt-8 first:mt-0 border-b-2 border-primary pb-2">
+              {item.content}
+            </h2>
+          );
+        case 'section-header':
+          return (
+            <h3 key={index} className="text-lg font-bold text-secondary mb-3 mt-6 first:mt-0 bg-secondary/10 p-3 rounded-lg border-l-4 border-secondary">
               {item.content}
             </h3>
           );
@@ -143,6 +166,17 @@ export const PDFViewer = ({
             <div key={index} className="ml-4 mb-2 flex items-start">
               <span className="text-primary mr-3 mt-1">•</span>
               <p className="text-foreground leading-relaxed">{item.content.substring(1).trim()}</p>
+            </div>
+          );
+        case 'time-block':
+          return (
+            <div key={index} className="bg-accent/10 p-3 rounded-lg mb-3 border-l-4 border-accent">
+              <p className="font-medium text-accent flex items-center">
+                <span className="text-sm bg-accent/20 px-2 py-1 rounded mr-3">
+                  ⏱️ {item.content.match(/^\d+\s*(min|minutes?|hour?s?)/i)?.[0] || 'Time'}
+                </span>
+                {item.content.replace(/^\d+\s*(min|minutes?|hour?s?)\s*[-:]?\s*/i, '')}
+              </p>
             </div>
           );
         case 'paragraph':
@@ -173,7 +207,7 @@ export const PDFViewer = ({
               <CardTitle className="text-lg font-semibold">{title}</CardTitle>
               <div className="flex items-center space-x-2 mt-1">
                 {grade && <Badge variant="outline" className="text-xs">{grade}</Badge>}
-                {type && <Badge variant={type === 'pretest' ? 'default' : 'secondary'} className="text-xs">{type}</Badge>}
+                {type && <Badge variant={type === 'pretest' ? 'default' : type === 'posttest' ? 'secondary' : 'outline'} className="text-xs">{type}</Badge>}
                 {totalMarks && <Badge variant="outline" className="text-xs">{totalMarks} marks</Badge>}
                 {filename && <Badge variant="secondary" className="text-xs">PDF</Badge>}
               </div>

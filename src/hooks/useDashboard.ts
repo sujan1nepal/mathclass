@@ -38,16 +38,116 @@ export const useDashboard = () => {
   const [gradePerformance, setGradePerformance] = useState<GradePerformance[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const calculateAverageScores = async () => {
+    try {
+      // Get all student scores with related data
+      const { data: scoresData, error: scoresError } = await supabase
+        .from('student_scores')
+        .select(`
+          scored_marks,
+          students!inner (
+            id,
+            grade
+          ),
+          test_questions!inner (
+            total_marks,
+            tests!inner (
+              id,
+              type,
+              grade
+            )
+          )
+        `);
+
+      if (scoresError) {
+        console.error('Error fetching scores for dashboard:', scoresError);
+        return { overall: 0, byGrade: {} };
+      }
+
+      // Group scores by student and test to calculate percentages
+      const studentTestScores: Record<string, Array<{
+        totalScored: number;
+        totalPossible: number;
+        grade: string;
+      }>> = {};
+
+      (scoresData || []).forEach(score => {
+        if (!score.students || !score.test_questions) return;
+        
+        const studentId = score.students.id;
+        const grade = score.students.grade;
+        const testId = score.test_questions.tests.id;
+        const key = `${studentId}-${testId}`;
+        
+        if (!studentTestScores[key]) {
+          studentTestScores[key] = [];
+        }
+
+        studentTestScores[key].push({
+          totalScored: score.scored_marks,
+          totalPossible: score.test_questions.total_marks,
+          grade: grade
+        });
+      });
+
+      // Calculate percentages for each student-test combination
+      const percentages: number[] = [];
+      const gradePercentages: Record<string, number[]> = {};
+
+      Object.values(studentTestScores).forEach(testScores => {
+        const totalScored = testScores.reduce((sum, s) => sum + s.totalScored, 0);
+        const totalPossible = testScores.reduce((sum, s) => sum + s.totalPossible, 0);
+        
+        if (totalPossible > 0) {
+          const percentage = (totalScored / totalPossible) * 100;
+          percentages.push(percentage);
+          
+          // Group by grade
+          const grade = testScores[0].grade;
+          if (!gradePercentages[grade]) {
+            gradePercentages[grade] = [];
+          }
+          gradePercentages[grade].push(percentage);
+        }
+      });
+
+      // Calculate overall average
+      const overallAvg = percentages.length > 0 
+        ? Math.round(percentages.reduce((sum, p) => sum + p, 0) / percentages.length)
+        : 0;
+
+      // Calculate grade averages
+      const gradeAverages: Record<string, number> = {};
+      Object.entries(gradePercentages).forEach(([grade, scores]) => {
+        gradeAverages[grade] = scores.length > 0 
+          ? Math.round(scores.reduce((sum, s) => sum + s, 0) / scores.length)
+          : 0;
+      });
+
+      return { overall: overallAvg, byGrade: gradeAverages };
+    } catch (error) {
+      console.error('Error calculating average scores:', error);
+      return { overall: 0, byGrade: {} };
+    }
+  };
+
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
 
-      // Fetch basic counts
-      const [studentsResult, lessonsResult, testsResult, attendanceResult] = await Promise.all([
+      // Fetch basic counts and calculate scores in parallel
+      const [
+        studentsResult, 
+        lessonsResult, 
+        testsResult, 
+        attendanceResult,
+        averageScores
+      ] = await Promise.all([
         supabase.from('students').select('id, grade'),
         supabase.from('lessons').select('id'),
         supabase.from('tests').select('id, title, grade, type, total_marks, created_at').order('created_at', { ascending: false }).limit(5),
-        supabase.from('attendance').select('status')
+        supabase.from('attendance').select('status'),
+        calculateAverageScores()
       ]);
 
       // Calculate stats
@@ -60,7 +160,7 @@ export const useDashboard = () => {
       const presentCount = attendanceData.filter(a => a.status === 'present').length;
       const attendanceRate = attendanceData.length > 0 ? Math.round((presentCount / attendanceData.length) * 100) : 0;
 
-      // Calculate grade performance
+      // Calculate grade performance with real scores
       const studentsByGrade = studentsResult.data?.reduce((acc, student) => {
         acc[student.grade] = (acc[student.grade] || 0) + 1;
         return acc;
@@ -70,7 +170,7 @@ export const useDashboard = () => {
       const gradePerf = Object.entries(studentsByGrade).map(([grade, count], index) => ({
         grade,
         students: count,
-        avgScore: Math.floor(Math.random() * 20) + 70, // TODO: Calculate actual scores when student_scores are available
+        avgScore: averageScores.byGrade[grade] || 0,
         color: gradeColors[index % gradeColors.length]
       }));
 
@@ -78,7 +178,7 @@ export const useDashboard = () => {
         totalStudents,
         totalLessons,
         totalTests,
-        averageScore: 78, // TODO: Calculate from actual student scores
+        averageScore: averageScores.overall,
         attendanceRate
       });
 
