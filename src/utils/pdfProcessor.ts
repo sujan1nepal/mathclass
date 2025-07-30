@@ -7,9 +7,9 @@ const configureWorker = () => {
   if (workerConfigured) return;
   
   try {
-    // Try to disable worker entirely to avoid CORS issues
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
-    console.log('🔧 Worker configured');
+    // Disable worker entirely to avoid CORS issues
+    pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+    console.log('🔧 PDF.js worker disabled to avoid CORS issues');
     workerConfigured = true;
   } catch (error) {
     console.warn('Failed to configure worker:', error);

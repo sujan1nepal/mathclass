@@ -52,8 +52,8 @@ export const QuestionEditor = ({ questions, onUpdate, disabled = false }: Questi
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Test Questions</h3>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+        <h3 className="text-base sm:text-lg font-semibold">Test Questions</h3>
         <Badge variant="outline">Total: {totalMarks} marks</Badge>
       </div>
 
@@ -61,31 +61,33 @@ export const QuestionEditor = ({ questions, onUpdate, disabled = false }: Questi
       {!disabled && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Add New Question</CardTitle>
+            <CardTitle className="text-sm sm:text-base">Add New Question</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label htmlFor="question">Question Text</Label>
+              <Label htmlFor="question" className="text-sm">Question Text</Label>
               <Textarea
                 id="question"
                 value={newQuestion.question_text}
                 onChange={(e) => setNewQuestion({ ...newQuestion, question_text: e.target.value })}
                 placeholder="Enter the question..."
                 rows={3}
+                className="mt-1"
               />
             </div>
-            <div className="flex items-center space-x-4">
-              <div className="flex-1">
-                <Label htmlFor="marks">Marks</Label>
+            <div className="flex flex-col sm:flex-row items-start sm:items-end space-y-4 sm:space-y-0 sm:space-x-4">
+              <div className="flex-1 w-full sm:w-auto">
+                <Label htmlFor="marks" className="text-sm">Marks</Label>
                 <Input
                   id="marks"
                   type="number"
                   min="1"
                   value={newQuestion.total_marks}
                   onChange={(e) => setNewQuestion({ ...newQuestion, total_marks: parseInt(e.target.value) || 1 })}
+                  className="mt-1"
                 />
               </div>
-              <Button onClick={handleAddQuestion} className="mt-6">
+              <Button onClick={handleAddQuestion} className="w-full sm:w-auto">
                 <Plus className="w-4 h-4 mr-2" />
                 Add Question
               </Button>
@@ -106,53 +108,55 @@ export const QuestionEditor = ({ questions, onUpdate, disabled = false }: Questi
                     onChange={(e) => handleUpdateQuestion(index, { question_text: e.target.value })}
                     rows={3}
                   />
-                  <div className="flex items-center space-x-4">
-                    <div className="flex-1">
-                      <Label>Marks</Label>
+                  <div className="flex flex-col sm:flex-row items-start sm:items-end space-y-4 sm:space-y-0 sm:space-x-4">
+                    <div className="flex-1 w-full sm:w-auto">
+                      <Label className="text-sm">Marks</Label>
                       <Input
                         type="number"
                         min="1"
                         value={question.total_marks}
                         onChange={(e) => handleUpdateQuestion(index, { total_marks: parseInt(e.target.value) || 1 })}
+                        className="mt-1"
                       />
                     </div>
-                    <div className="flex space-x-2 mt-6">
-                      <Button size="sm" onClick={() => setEditingIndex(null)}>
+                    <div className="flex space-x-2 w-full sm:w-auto">
+                      <Button size="sm" onClick={() => setEditingIndex(null)} className="flex-1 sm:flex-none">
                         Save
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => setEditingIndex(null)}>
+                      <Button size="sm" variant="outline" onClick={() => setEditingIndex(null)} className="flex-1 sm:flex-none">
                         Cancel
                       </Button>
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2 mb-2">
+                <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-col sm:flex-row sm:items-center space-y-1 sm:space-y-0 sm:space-x-2 mb-2">
                       <span className="text-sm font-medium text-muted-foreground">
                         Question {question.question_order}
                       </span>
-                      <Badge variant="secondary">{question.total_marks} marks</Badge>
+                      <Badge variant="secondary" className="text-xs">{question.total_marks} marks</Badge>
                     </div>
-                    <p className="text-sm">{question.question_text}</p>
+                    <p className="text-sm break-words">{question.question_text}</p>
                   </div>
                   {!disabled && (
-                    <div className="flex space-x-1 ml-4">
+                    <div className="flex space-x-1 shrink-0">
                       <Button
                         size="sm"
                         variant="ghost"
                         onClick={() => setEditingIndex(index)}
+                        className="h-8 w-8 p-0"
                       >
-                        <Edit className="w-4 h-4" />
+                        <Edit className="w-3 h-3" />
                       </Button>
                       <Button
                         size="sm"
                         variant="ghost"
                         onClick={() => handleDeleteQuestion(index)}
-                        className="text-destructive hover:text-destructive"
+                        className="text-destructive hover:text-destructive h-8 w-8 p-0"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3 h-3" />
                       </Button>
                     </div>
                   )}
@@ -164,8 +168,8 @@ export const QuestionEditor = ({ questions, onUpdate, disabled = false }: Questi
       </div>
 
       {questions.length === 0 && (
-        <div className="text-center py-8 text-muted-foreground">
-          <p>No questions added yet. {!disabled && "Add your first question above."}</p>
+        <div className="text-center py-6 sm:py-8 text-muted-foreground">
+          <p className="text-sm">{!disabled ? "No questions added yet. Add your first question above." : "No questions available."}</p>
         </div>
       )}
     </div>
