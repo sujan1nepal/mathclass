@@ -73,7 +73,7 @@ export const generateTestTemplate = async (type: 'pretest' | 'posttest', title: 
             children: [
               new TextRun({
                 text: "Follow these rules EXACTLY for automatic question parsing:",
-                italic: true,
+                italics: true,
                 bold: true,
                 size: 22,
                 color: "DC2626"
@@ -99,7 +99,7 @@ export const generateTestTemplate = async (type: 'pretest' | 'posttest', title: 
               new TextRun({
                 text: "   Examples: '1.' or '2.' or '15.' (NOT '1)' or 'Q1' or 'Question 1')",
                 size: 18,
-                italic: true
+                italics: true
               })
             ],
             spacing: { after: 200 }
@@ -122,7 +122,7 @@ export const generateTestTemplate = async (type: 'pretest' | 'posttest', title: 
               new TextRun({
                 text: "   Examples: '[3 marks]' or '(2 marks)' or '[5 pts]' or '(1 point)'",
                 size: 18,
-                italic: true
+                italics: true
               })
             ],
             spacing: { after: 200 }
@@ -227,7 +227,7 @@ export const generateTestTemplate = async (type: 'pretest' | 'posttest', title: 
             children: [
               new TextRun({
                 text: "Copy the format below exactly, replacing with your actual questions:",
-                italic: true,
+                italics: true,
                 size: 22,
                 color: "059669"
               })
@@ -315,7 +315,7 @@ export const generateTestTemplate = async (type: 'pretest' | 'posttest', title: 
             children: [
               new TextRun({
                 text: "Show your formula and calculations clearly.",
-                italic: true,
+                italics: true,
                 size: 20
               })
             ],
@@ -350,7 +350,7 @@ export const generateTestTemplate = async (type: 'pretest' | 'posttest', title: 
             children: [
               new TextRun({
                 text: "Express your final answer in its simplest form.",
-                italic: true,
+                italics: true,
                 size: 20
               })
             ],
@@ -882,7 +882,7 @@ export const generateFormatGuide = async () => {
             children: [
               new TextRun({
                 text: "This guide shows you exactly how to format questions for automatic parsing",
-                italic: true,
+                italics: true,
                 size: 24,
                 color: "374151"
               })

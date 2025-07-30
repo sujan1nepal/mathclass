@@ -332,7 +332,7 @@ export const useSupabaseUploads = () => {
         console.warn('⚠️ Re-parsing failed:', parseError);
         
         // Use fallback: create sample questions
-        questions = createSampleQuestions(testData.title, testData.type);
+        questions = createSampleQuestions(testData.title, testData.type as 'pretest' | 'posttest');
         console.log(`🔧 Created ${questions.length} sample questions as fallback`);
         toast.warning('Could not parse questions from PDF. Created sample questions for editing.');
       }
