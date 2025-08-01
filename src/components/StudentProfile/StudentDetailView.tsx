@@ -138,11 +138,11 @@ export const StudentDetailView = ({ student, isOpen, onClose }: StudentDetailVie
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh]">
+      <DialogContent className="max-w-4xl max-h-[90vh] w-[95vw]">
         <DialogHeader>
-          <DialogTitle className="flex items-center space-x-3">
-            <User className="w-6 h-6" />
-            <span>{student.name} - Progress Report</span>
+          <DialogTitle className="flex items-center space-x-3 text-lg">
+            <User className="w-5 h-5" />
+            <span className="truncate">{student.name} - Progress Report</span>
           </DialogTitle>
         </DialogHeader>
         
@@ -157,7 +157,7 @@ export const StudentDetailView = ({ student, isOpen, onClose }: StudentDetailVie
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Grade</p>
                     <Badge variant="outline">{student.grade}</Badge>
@@ -191,25 +191,25 @@ export const StudentDetailView = ({ student, isOpen, onClose }: StudentDetailVie
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="text-center">
                     <div className="flex items-center justify-center space-x-2 mb-2">
                       <CheckCircle className="w-5 h-5 text-success" />
-                      <span className="font-bold text-2xl text-success">{attendanceStats.present}</span>
+                      <span className="font-bold text-xl sm:text-2xl text-success">{attendanceStats.present}</span>
                     </div>
                     <p className="text-sm text-muted-foreground">Present</p>
                   </div>
                   <div className="text-center">
                     <div className="flex items-center justify-center space-x-2 mb-2">
                       <XCircle className="w-5 h-5 text-destructive" />
-                      <span className="font-bold text-2xl text-destructive">{attendanceStats.absent}</span>
+                      <span className="font-bold text-xl sm:text-2xl text-destructive">{attendanceStats.absent}</span>
                     </div>
                     <p className="text-sm text-muted-foreground">Absent</p>
                   </div>
                   <div className="text-center">
                     <div className="flex items-center justify-center space-x-2 mb-2">
                       <Clock className="w-5 h-5 text-warning" />
-                      <span className="font-bold text-2xl text-warning">{attendanceStats.late}</span>
+                      <span className="font-bold text-xl sm:text-2xl text-warning">{attendanceStats.late}</span>
                     </div>
                     <p className="text-sm text-muted-foreground">Late</p>
                   </div>
@@ -252,17 +252,17 @@ export const StudentDetailView = ({ student, isOpen, onClose }: StudentDetailVie
                           </CardTitle>
                         </CardHeader>
                         <CardContent>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                             {/* Pre-test */}
                             <div className="space-y-2">
-                              <div className="flex items-center justify-between">
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                                 <span className="text-sm font-medium">Pre-test</span>
                                 {lesson.pretestScore ? (
-                                  <Badge variant={getScoreBadgeVariant(lesson.pretestScore.percentage)}>
+                                  <Badge variant={getScoreBadgeVariant(lesson.pretestScore.percentage)} className="text-xs">
                                     {lesson.pretestScore.scored}/{lesson.pretestScore.total} ({lesson.pretestScore.percentage}%)
                                   </Badge>
                                 ) : (
-                                  <Badge variant="outline">Not taken</Badge>
+                                  <Badge variant="outline" className="text-xs">Not taken</Badge>
                                 )}
                               </div>
                               {lesson.pretestScore && (
@@ -272,14 +272,14 @@ export const StudentDetailView = ({ student, isOpen, onClose }: StudentDetailVie
 
                             {/* Post-test */}
                             <div className="space-y-2">
-                              <div className="flex items-center justify-between">
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                                 <span className="text-sm font-medium">Post-test</span>
                                 {lesson.posttestScore ? (
-                                  <Badge variant={getScoreBadgeVariant(lesson.posttestScore.percentage)}>
+                                  <Badge variant={getScoreBadgeVariant(lesson.posttestScore.percentage)} className="text-xs">
                                     {lesson.posttestScore.scored}/{lesson.posttestScore.total} ({lesson.posttestScore.percentage}%)
                                   </Badge>
                                 ) : (
-                                  <Badge variant="outline">Not taken</Badge>
+                                  <Badge variant="outline" className="text-xs">Not taken</Badge>
                                 )}
                               </div>
                               {lesson.posttestScore && (

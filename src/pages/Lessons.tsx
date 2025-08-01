@@ -69,14 +69,14 @@ const Lessons = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Lessons</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Lessons</h1>
           <p className="text-muted-foreground">Manage lesson plans and curriculum</p>
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-gradient-to-r from-primary to-secondary text-white">
+            <Button className="bg-gradient-to-r from-primary to-secondary text-white w-full sm:w-auto">
               <Plus className="w-4 h-4 mr-2" />
               Add Lesson
             </Button>
@@ -89,20 +89,19 @@ const Lessons = () => {
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="title" className="text-right">Title *</Label>
+              <div className="space-y-2">
+                <Label htmlFor="title">Title *</Label>
                 <Input
                   id="title"
                   value={newLesson.title}
                   onChange={(e) => setNewLesson({...newLesson, title: e.target.value})}
-                  className="col-span-3"
                   placeholder="Lesson title"
                 />
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="grade" className="text-right">Grade *</Label>
+              <div className="space-y-2">
+                <Label htmlFor="grade">Grade *</Label>
                 <Select value={newLesson.grade} onValueChange={(value) => setNewLesson({...newLesson, grade: value})}>
-                  <SelectTrigger className="col-span-3">
+                  <SelectTrigger>
                     <SelectValue placeholder="Select grade" />
                   </SelectTrigger>
                   <SelectContent>

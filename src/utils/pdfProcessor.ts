@@ -1,18 +1,19 @@
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Configure PDF.js worker with better fallback
+// Configure PDF.js worker with proper setup
 let workerConfigured = false;
 
 const configureWorker = () => {
   if (workerConfigured) return;
   
   try {
-    // Disable worker entirely to avoid CORS issues
-    pdfjsLib.GlobalWorkerOptions.workerSrc = '';
-    console.log('🔧 PDF.js worker disabled to avoid CORS issues');
+    // Use CDN worker for better compatibility
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+    console.log('🔧 PDF.js worker configured with CDN source');
     workerConfigured = true;
   } catch (error) {
-    console.warn('Failed to configure worker:', error);
+    console.warn('Failed to configure worker, disabling:', error);
+    pdfjsLib.GlobalWorkerOptions.workerSrc = '';
   }
 };
 

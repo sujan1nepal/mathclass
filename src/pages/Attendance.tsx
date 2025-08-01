@@ -142,14 +142,14 @@ const Attendance = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Attendance</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Attendance</h1>
           <p className="text-muted-foreground">Track daily student attendance</p>
         </div>
         <Button 
           variant="outline" 
-          className="gap-2"
+          className="gap-2 w-full sm:w-auto"
           onClick={handleExportReport}
           disabled={!selectedGrade || studentAttendance.length === 0}
         >
@@ -249,7 +249,7 @@ const Attendance = () => {
             <Button 
               onClick={handleMarkAllPresent}
               disabled={!selectedGrade || studentsLoading}
-              className="w-full bg-success hover:bg-success/90"
+              className="w-full bg-success hover:bg-success/90 text-sm"
             >
               <CheckCircle className="w-4 h-4 mr-2" />
               Mark All Present
@@ -258,7 +258,7 @@ const Attendance = () => {
               onClick={handleMarkAllAbsent}
               disabled={!selectedGrade || studentsLoading}
               variant="destructive"
-              className="w-full"
+              className="w-full text-sm"
             >
               <XCircle className="w-4 h-4 mr-2" />
               Mark All Absent
@@ -267,7 +267,7 @@ const Attendance = () => {
               onClick={handleSaveAttendance}
               disabled={!selectedGrade || saving || studentAttendance.length === 0}
               variant="outline"
-              className="w-full"
+              className="w-full text-sm"
             >
               {saving ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
